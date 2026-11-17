@@ -5,8 +5,7 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
-ENV DATA_DIR=/data PYTHONUNBUFFERED=1
-RUN mkdir -p /data
+ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 # one worker: render/track jobs run in-process
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers --forwarded-allow-ips='*'"]

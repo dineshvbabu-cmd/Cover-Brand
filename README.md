@@ -36,16 +36,31 @@ uvicorn app.main:app --port 8000
 ```
 Or `docker build -t coverbrand . && docker run -p 8000:8000 -v $PWD/data:/data coverbrand`
 
-## Deploy on Railway
-1. Push this folder to a GitHub repo → *New Project → Deploy from repo* (Dockerfile is picked up).
-2. Add a **Volume** mounted at `/data` (projects, logos and videos live there).
-3. Variables:
-   | Variable | Purpose |
+## Deploy on Railway (with MongoDB)
+1. Push this repo → *New Project → Deploy from GitHub repo* (Dockerfile is picked up).
+2. Add a **MongoDB** service in the same project (*+ Create → Database → MongoDB*).
+3. In the **Cover-Brand** service → *Variables*:
+   | Variable | Value |
    |---|---|
+   | `MONGO_URL` | `${{MongoDB.MONGO_URL}}` (reference to the MongoDB service) |
    | `APP_PASSWORD` | Password for the team UI (browser login prompt; any username). Share links stay public. |
-   | `PUBLIC_URL` | Your public domain, e.g. `https://coverbrand.up.railway.app` – used in share links |
-   | `RENDER_WORKERS` | Parallel render jobs (default 2; raise with more CPU) |
-4. Generate a domain under *Settings → Networking*.
+   | `PUBLIC_URL` | Your public domain, e.g. `https://cover-brand-production.up.railway.app` (no trailing `/`) |
+   | `MONGO_DB` | Optional database name (default `coverbrand`) |
+   | `RENDER_WORKERS` | Optional, parallel render jobs (default 2) |
+4. *Settings → Networking → Generate Domain*, then put that address in `PUBLIC_URL`.
+5. Open `https://<your-domain>/health` – it should show `"storage": "mongodb"`.
+
+### What is stored where
+- MongoDB collections: `projects` (video info, cover corners, vendors, style, render status),
+  `tracks` (cover position per frame), `shares` (public link tokens)
+- MongoDB GridFS (`files` bucket): the prepared concept video, vendor logos, rendered MP4/GIF and thumbnails
+- The Cover-Brand service needs **no volume**: `/tmp/coverbrand` is only a working cache and is
+  refilled from MongoDB automatically after a redeploy.
+- Videos count towards the MongoDB volume size – delete old projects you no longer need
+  (*Delete project* removes their files from MongoDB too).
+- If the app restarts during tracking/rendering, those jobs are marked *Interrupted* – click Re-render.
+
+Without `MONGO_URL` the app falls back to plain files under `DATA_DIR` (handy for local runs).
 
 ## Good to know
 - Rendering is CPU work: a 10 s 1080p clip takes roughly 5–15 s per vendor on a normal instance.

@@ -51,7 +51,7 @@ def base_url(request: Request) -> str:
 
 
 def get_project(pid: str) -> dict:
-    if not (store.pdir(pid) / "project.json").exists():
+    if not store.exists(pid):
         raise HTTPException(404, "Project not found")
     return store.load(pid)
 
@@ -63,9 +63,37 @@ def find_vendor(p, vid):
     raise HTTPException(404, "Vendor not found")
 
 
+@app.on_event("startup")
+def recover_interrupted_jobs():
+    """Jobs run in-process; after a restart/redeploy mark unfinished ones so they can be re-run."""
+    try:
+        store.ping()
+        for pr in store.list_projects():
+            def fn(q):
+                if q["track"].get("status") == "running":
+                    q["track"].update(status="error", error="Interrupted by a restart - click Track cover again")
+                for r in q["renders"].values():
+                    if r.get("status") in ("queued", "rendering"):
+                        r.update(status="error", error="Interrupted by a restart - click Re-render")
+            store.update(pr["id"], fn)
+    except Exception:
+        traceback.print_exc()
+
+
 @app.get("/health")
 def health():
-    return {"ok": True}
+    try:
+        store.ping()
+        return {"ok": True, "storage": store.backend()}
+    except Exception as e:
+        return JSONResponse({"ok": False, "storage": store.backend(), "error": str(e)}, status_code=503)
+
+
+def ensure_local(pid: str, vendor: dict | None = None) -> None:
+    """Make sure the working copies FFmpeg/OpenCV need are on local disk."""
+    store.local(pid, "source.mp4")
+    if vendor and vendor.get("logo"):
+        store.local(pid, f"logos/{vendor['logo']}")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -85,17 +113,20 @@ async def create_project(file: UploadFile = File(...), name: str = Form("")):
     import time
     pid = store.new_id()
     d = store.pdir(pid)
-    (d / "logos").mkdir(parents=True)
-    (d / "out").mkdir()
+    (d / "logos").mkdir(parents=True, exist_ok=True)
+    (d / "out").mkdir(exist_ok=True)
     ext = Path(file.filename or "upload.mp4").suffix.lower() or ".mp4"
     raw = d / f"original{ext}"
     with raw.open("wb") as f:
         shutil.copyfileobj(file.file, f)
     try:
         info = render.ingest(raw, d / "source.mp4")
+        store.put_file(pid, "source.mp4", d / "source.mp4")
     except Exception as e:
         shutil.rmtree(d, ignore_errors=True)
         raise HTTPException(400, str(e))
+    finally:
+        raw.unlink(missing_ok=True)
     p = {"id": pid, "name": name or Path(file.filename or "concept").stem, "created": time.time(),
          "original": raw.name, "is_gif": ext == ".gif", **info,
          "cover": {"mode": "auto", "keyframes": [], "aspect_override": None},
@@ -113,7 +144,7 @@ def project(pid: str):
 @app.delete("/api/projects/{pid}")
 def delete_project(pid: str):
     get_project(pid)
-    shutil.rmtree(store.pdir(pid), ignore_errors=True)
+    store.delete_project(pid)
     return {"ok": True}
 
 
@@ -121,7 +152,7 @@ def delete_project(pid: str):
 def frame(pid: str, idx: int):
     p = get_project(pid)
     import cv2
-    f = render.read_frame(store.pdir(pid) / "source.mp4", max(0, min(idx, p["frames"] - 1)))
+    f = render.read_frame(store.local(pid, "source.mp4"), max(0, min(idx, p["frames"] - 1)))
     ok, buf = cv2.imencode(".jpg", f, [cv2.IMWRITE_JPEG_QUALITY, 82])
     return Response(buf.tobytes(), media_type="image/jpeg", headers={"Cache-Control": "max-age=3600"})
 
@@ -148,7 +179,7 @@ def _run_track(pid):
 
         def prog(x):
             store.update(pid, lambda q: q["track"].update(progress=round(x, 3)))
-        quads, conf = tracking.track(str(store.pdir(pid) / "source.mp4"), p["width"], p["frames"],
+        quads, conf = tracking.track(str(store.local(pid, "source.mp4")), p["width"], p["frames"],
                                      p["cover"]["mode"], p["cover"]["keyframes"], prog)
         store.save_tracks(pid, {"quads": quads, "conf": conf})
         low = sum(1 for c in conf if c < 0.15)
@@ -188,7 +219,10 @@ def _save_logo(pid, vid, filename, blob) -> str:
     if ext not in vparse.IMG_EXT:
         ext = ".png"
     name = f"{vid}{ext}"
-    (store.pdir(pid) / "logos" / name).write_bytes(blob)
+    path = store.pdir(pid) / "logos" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(blob)
+    store.put_file(pid, f"logos/{name}", path)
     return name
 
 
@@ -273,7 +307,10 @@ def get_logo(pid: str, vid: str):
     v = find_vendor(get_project(pid), vid)
     if not v.get("logo"):
         raise HTTPException(404)
-    return FileResponse(store.pdir(pid) / "logos" / v["logo"])
+    f = store.local(pid, f"logos/{v['logo']}")
+    if not f.exists():
+        raise HTTPException(404)
+    return FileResponse(f)
 
 
 # ---------- style + previews ----------
@@ -289,6 +326,7 @@ def decal(pid: str, vid: str):
     p = get_project(pid)
     if not p["cover"]["keyframes"]:
         raise HTTPException(400, "Mark the cover first")
+    ensure_local(pid, find_vendor(p, vid))
     return Response(render.decal_png(p, find_vendor(p, vid), store.pdir(pid)), media_type="image/png")
 
 
@@ -296,6 +334,7 @@ def decal(pid: str, vid: str):
 def preview(pid: str, vid: str, idx: int):
     p = get_project(pid)
     quads = _quads_or_400(pid, p)
+    ensure_local(pid, find_vendor(p, vid))
     jpg = render.preview(p, find_vendor(p, vid), store.pdir(pid), quads, max(0, min(idx, p["frames"] - 1)))
     return Response(jpg, media_type="image/jpeg")
 
@@ -308,10 +347,16 @@ def _run_render(pid, vid):
         p = store.load(pid)
         v = find_vendor(p, vid)
         quads = store.load_tracks(pid)["quads"]
+        ensure_local(pid, v)
         out = store.pdir(pid) / "out" / f"{vid}.mp4"
+        out.parent.mkdir(parents=True, exist_ok=True)
         setr(status="rendering", progress=0)
         render.render_vendor(p, v, store.pdir(pid), quads, out, p.get("is_gif", False),
                              lambda x: setr(progress=round(x, 3)))
+        for ext in ("mp4", "gif", "jpg"):
+            f = out.with_suffix("." + ext)
+            if f.exists():
+                store.put_file(pid, f"out/{vid}.{ext}", f)
         import time
         setr(status="done", progress=1, error="", rendered_at=time.time(), has_gif=p.get("is_gif", False))
     except Exception as e:
@@ -369,8 +414,8 @@ def zip_all(pid: str, request: Request):
         for l in rows:
             safe = "".join(c if c.isalnum() or c in " -_" else "_" for c in l["name"]).strip() or l["vendor_id"]
             fn = f"{safe}.mp4"
-            z.write(store.pdir(pid) / "out" / f"{l['vendor_id']}.mp4", fn)
-            gif = store.pdir(pid) / "out" / f"{l['vendor_id']}.gif"
+            z.write(store.local(pid, f"out/{l['vendor_id']}.mp4"), fn)
+            gif = store.local(pid, f"out/{l['vendor_id']}.gif")
             if gif.exists():
                 z.write(gif, f"{safe}.gif")
             w.writerow([l["name"], l["email"], l["share_url"], fn])
@@ -382,7 +427,7 @@ def zip_all(pid: str, request: Request):
 
 @app.get("/api/projects/{pid}/out/{vid}.jpg")
 def out_thumb(pid: str, vid: str):
-    f = store.pdir(pid) / "out" / f"{vid}.jpg"
+    f = store.local(pid, f"out/{vid}.jpg")
     if not f.exists():
         raise HTTPException(404)
     return FileResponse(f)
@@ -390,7 +435,7 @@ def out_thumb(pid: str, vid: str):
 
 # ---------- public share pages ----------
 def _share(token):
-    s = store.shares().get(token)
+    s = store.get_share(token)
     if not s:
         raise HTTPException(404, "Link not found")
     p = get_project(s["pid"])
@@ -404,7 +449,7 @@ def media(token: str, ext: str):
     p, v, r = _share(token)
     if ext not in ("mp4", "gif", "jpg") or r.get("status") != "done":
         raise HTTPException(404)
-    f = store.pdir(p["id"]) / "out" / f"{v['id']}.{ext}"
+    f = store.local(p["id"], f"out/{v['id']}.{ext}")
     if not f.exists():
         raise HTTPException(404)
     safe = "".join(c if c.isalnum() else "_" for c in v["name"])
