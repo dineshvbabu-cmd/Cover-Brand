@@ -601,9 +601,11 @@ def finish_preview(pid: str, vid: str, ratio: str, scene: str = "intro"):
     if v.get("logo"):
         lp = store.local(pid, f"logos/{v['logo']}")
         if lp.exists():
-            logo = Image.open(lp)
+            from .decal import _prep_logo
+            logo = _prep_logo(lp, True)
     els, total = fin.BUILDERS.get(f["preset"], fin.corporate)(
-        v, ra, p["frames"] / float(p["fps"] or 25), p["width"] / p["height"], f, "logo" if logo else None)
+        v, ra, p["frames"] / float(p["fps"] or 25), p["width"] / p["height"], f, "logo" if logo else None,
+        (logo.width / logo.height) if logo else None)
     t = {"intro": 2.6, "clip": 5.0, "end": total - 0.6}.get(scene, 2.6)
     im = fin.mock_frame(els, ra, t, frame, logo, f["dark"])
     im.thumbnail((960, 960))

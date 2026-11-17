@@ -148,9 +148,20 @@ def _logo_block(name, logo_url, x, y, w, h, start, length, f, fade_in=0.5, slide
     """White rounded card with the logo, or an accent monogram when there is no logo."""
     out = []
     if logo_url:
-        out.append(_rect(x, y, w, h, start, length, "#ffffff", 1, radius=int(min(w, h) * 0.08),
+        la = f.get("_logo_aspect")
+        if la:  # card follows the logo's shape, as large as fits in the box
+            m = 0.14
+            iw, ih = w * (1 - 2 * m), h * (1 - 2 * m)
+            if iw / ih > la:
+                iw = ih * la
+            else:
+                ih = iw / la
+            cw, ch = iw + 2 * m * min(w, h), ih + 2 * m * min(w, h)
+            x, y, w, h = x + (w - cw) / 2, y + (h - ch) / 2, cw, ch
+            pad = m * min(w, h) / max(w, h)
+        out.append(_rect(x, y, w, h, start, length, "#ffffff", 1, radius=int(min(w, h) * 0.12),
                          fade_in=fade_in, slide=slide))
-        px, py = int(w * pad), int(h * pad)
+        px, py = int(min(w, h) * pad * (1 if not la else 1)), int(min(w, h) * pad)
         out.append(E("image", x + px, y + py, w - 2 * px, h - 2 * py, start + 0.15, length - 0.15,
                      src=logo_url, fade_in=fade_in, slide=slide))
     else:
@@ -167,7 +178,8 @@ def contact_lines(v):
     return [s for s in (v.get("contact"), v.get("phone"), v.get("email"), v.get("website")) if s and str(s).strip()]
 
 
-def corporate(vendor: dict, ratio: str, clip_dur: float, clip_aspect: float, f: dict, logo_url):
+def corporate(vendor: dict, ratio: str, clip_dur: float, clip_aspect: float, f: dict, logo_url, logo_aspect=None):
+    f = {**f, "_logo_aspect": logo_aspect}
     """Return (elements, total_duration). Elements are drawn bottom-to-top in list order."""
     W, H = SIZES[ratio]
     name = (vendor.get("name") or "Vendor").strip()
@@ -194,7 +206,10 @@ def corporate(vendor: dict, ratio: str, clip_dur: float, clip_aspect: float, f: 
         els.append(_text(f["headline"], 190, 665, 960, 80, 1.0, intro_len - 1.0, "CB Text", 40, "#c9d3df",
                          anim={"preset": "fadeIn", "duration": 0.7}))
         els += _logo_block(name, logo_url, 1330, 330, 470, 420, 0.7, intro_len - 0.7, f, slide=("x", 260, 0.8))
-        # ---- clip
+        # ---- clip (blurred fill behind when the product video isn't landscape 16:9)
+        if abs(clip_aspect - W / H) > 0.15:
+            els.append(E("video", 0, 0, W, H, T1, D, fit="crop", filter="blur", opacity=0.55, muted=True,
+                         effect="zoomInSlow", transition_in="fade"))
         els.append(E("video", 0, 0, W, H, T1, D, fit="contain", transition_in="fade"))
         lt0, ltl = T1 + 0.7, max(1.0, D - 1.2)
         cap_w = max(text_w(NAME, "CB Display", 46), text_w(f["caption"], "CB Text", 28)) + 90
@@ -255,9 +270,17 @@ def corporate(vendor: dict, ratio: str, clip_dur: float, clip_aspect: float, f: 
         # ---- clip: blurred fill + sharp video in the middle
         els.append(E("video", 0, 0, W, H, T1, D, fit="crop", filter="blur", opacity=0.55, muted=True,
                      effect="zoomInSlow", transition_in="fade"))
+        # sharp clip in the middle, sized to leave room for the captions above and below
+        top_room, bottom_room = (430, 520) if tall else (150, 150)
+        max_h = H - top_room - bottom_room
+        vw = W
         vh = int(W / max(0.3, clip_aspect))
-        vy = (H - vh) // 2 if tall else max(170, (H - vh) // 2)
-        els.append(E("video", 0, vy, W, vh, T1, D, fit="contain", transition_in="fade"))
+        if vh > max_h:
+            vh = max_h
+            vw = min(W, int(vh * clip_aspect))
+        vy = top_room + (max_h - vh) // 2
+        vx = (W - vw) // 2
+        els.append(E("video", vx, vy, vw, vh, T1, D, fit="contain", transition_in="fade"))
         lt0, ltl = T1 + 0.5, max(1.0, D - 0.9)
         if tall:
             els.append(_text(f["kicker"], cx0, vy - 300, tw, 50, lt0, ltl, "CB Semi", 30, acc, "center", spacing=6))

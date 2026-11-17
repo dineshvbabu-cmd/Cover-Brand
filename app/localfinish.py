@@ -227,7 +227,8 @@ def render(project, vendor, ratio, clip_path: Path, logo_path, out_path: Path, f
         except Exception:
             logo = None
     els, total = F.BUILDERS.get(f["preset"], F.corporate)(
-        vendor, ratio, clip_dur, project["width"] / project["height"], f, "logo" if logo else None)
+        vendor, ratio, clip_dur, project["width"] / project["height"], f, "logo" if logo else None,
+        (logo.width / logo.height) if logo else None)
     sprites = {}
     for i, e in enumerate(els):
         if e["kind"] != "video":

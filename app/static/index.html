@@ -205,7 +205,11 @@
       <div id="styleForm">
         <div class="field"><label>Preview vendor</label><select id="pvVendor"></select></div>
         <div class="field"><label>Layout</label>
-          <select data-k="layout"><option value="auto">Auto (by cover shape)</option><option value="row">Logo left, text right</option><option value="stack">Logo on top, text below</option><option value="text">Text only</option></select></div>
+          <select data-k="layout"><option value="auto">Auto (best fit for each vendor)</option><option value="row">Logo left, text right</option><option value="stack">Logo on top, text below</option><option value="text">Text only</option></select></div>
+        <div class="field"><label>Text direction</label>
+          <select data-k="text_direction"><option value="auto">Auto (sideways on tall covers)</option><option value="horizontal">Always horizontal</option><option value="vertical">Always sideways</option></select></div>
+        <div class="field"><label>White badge behind logo</label>
+          <select data-k="logo_badge"><option value="auto">Auto (when the logo blends with the cover)</option><option value="always">Always</option><option value="never">Never</option></select></div>
         <div class="field"><label>Font</label>
           <select data-k="font"><option value="condensed">Condensed (stencil style)</option><option value="sans">Sans bold</option><option value="serif">Serif</option><option value="mono">Mono</option></select></div>
         <div class="row" style="margin-bottom:12px">
