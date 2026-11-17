@@ -4,16 +4,19 @@ Upload the maker's concept video (or GIF) once, mark the cover panel, import you
 and the app prints each vendor's **name, logo and contact details onto the moving cover**,
 then gives you **one video + one share link per vendor**.
 
-## How it works (4 steps)
-1. **Upload the video** – the maker's MP4 / MOV / WEBM / GIF (up to 2 minutes).
-2. **Mark the cover** – drag the 4 orange dots onto the cover area where the name should print and click
-   **Save cover position**; the app follows the cover through the whole video (green box).
-   *More options* has manual/static modes and extra anchor frames if the print slips.
-3. **Add vendors** – drop Excel / CSV / PDF / Outlook .msg/.eml / logo images, or paste a list. Every cell is editable.
-4. **Make & share** – one click per batch: the vendor's name, logo and contact are printed on the cover, then
-   Shotstack designs the finished video (intro, captions, end card, music) in 16:9, 9:16 and 1:1.
-   Each vendor gets a **WhatsApp** button (opens WhatsApp with their number and the link pre-filled),
-   **Copy link**, the public page, and downloads for every size. *Download all (ZIP)* gets everything.
+## How it works
+1. **Choose a product sample** – upload each product's standard video once (e.g. *Curtain-sider trailer*)
+   and give it a name; afterwards just click its card. Samples, their cover position and vendors are saved.
+2. **Mark the cover (once per sample)** – the app finds coloured covers automatically; click **Save cover position**.
+   In *colour* mode the cover is found in every frame: the print follows it, stays on the fabric only, and
+   squeezes into the folds as a curtain opens and stretches back as it closes.
+3. **Add vendors** – Excel / CSV / PDF / Outlook .msg/.eml / logo images, paste a list, or
+   *Use vendors from another sample* (copies names, contacts and logos).
+4. **Make & share** – prints name, logo and contact on the cover, then Shotstack designs the finished video
+   (intro, captions, end card, music) in 16:9, 9:16 and 1:1. Per vendor: **WhatsApp**, copy link, downloads.
+
+Logos: plain, grey or gradient backgrounds are removed automatically; when the logo's colour is too close
+to the cover colour it gets a white badge (*Customise the look → logo badge*).
 
 *Customise the look (optional)* holds the print style (font, colours, plate, realism) and the video design
 (texts, colours, music, sizes, free layout previews).

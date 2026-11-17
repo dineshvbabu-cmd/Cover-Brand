@@ -58,15 +58,31 @@ def ref_quad(project) -> list:
     return kfs[0]["quad"]
 
 
+def cover_rgb(project, pdir: Path, cs=None):
+    """Average colour of the cover (for logo contrast)."""
+    try:
+        if cs:
+            hsv = np.uint8([[[int(cs["h"]), int(cs["s"]), int(cs["v"])]]])
+            return tuple(int(x) for x in cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)[0, 0])
+        kf = sorted(project["cover"]["keyframes"], key=lambda k: k["frame"])[0]
+        f = read_frame(pdir / "source.mp4", kf["frame"])
+        m = np.zeros(f.shape[:2], np.uint8)
+        cv2.fillPoly(m, [np.asarray(kf["quad"], np.int32)], 255)
+        b, g, r = [float(np.median(f[..., c][m > 0])) for c in range(3)]
+        return (int(r), int(g), int(b))
+    except Exception:
+        return None
+
+
 def make_decal(project, vendor, pdir: Path, quads) -> np.ndarray:
-    quads, _, _ = _tracks(quads)
+    quads, _, cs = _tracks(quads)
     """BGRA numpy decal, sized to the cover's largest on-screen width."""
     rq = ref_quad(project)
     aspect = project["cover"].get("aspect_override") or quad_aspect(rq)
     widths = [np.linalg.norm(np.asarray(q[1]) - np.asarray(q[0])) for q in quads[:: max(1, len(quads) // 30)]]
     width = int(np.clip(max(widths) * 1.5, 400, 2400))
     logo = pdir / "logos" / vendor["logo"] if vendor.get("logo") else None
-    im = render_decal(vendor, project.get("style", {}), aspect, width, logo)
+    im = render_decal(vendor, project.get("style", {}), aspect, width, logo, cover_rgb(project, pdir, cs))
     return cv2.cvtColor(np.asarray(im), cv2.COLOR_RGBA2BGRA)
 
 
@@ -105,7 +121,7 @@ def composite(frame: np.ndarray, decal: np.ndarray, quad, style: dict, lref: flo
     roi = frame[y0:y1, x0:x1].astype(np.float32)
     alpha = warped[..., 3:4].astype(np.float32) / 255.0 * float(style.get("opacity", 0.95)) * float(vis or 1.0)
     if cs:  # print only on the cover fabric (not on posts, cargo, background)
-        cm = colour_mask(cv2.cvtColor(roi.astype(np.uint8), cv2.COLOR_BGR2HSV), cs).astype(np.float32) / 255.0
+        cm = colour_mask(cv2.cvtColor(roi.astype(np.uint8), cv2.COLOR_BGR2HSV), cs, loose=True).astype(np.float32) / 255.0
         cm = cv2.GaussianBlur(cv2.morphologyEx(cm, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)), (0, 0), 1.5)
         alpha = alpha * cm[..., None]
     rgb = warped[..., :3].astype(np.float32)
@@ -180,11 +196,11 @@ def preview(project, vendor, pdir: Path, quads, idx: int) -> bytes:
     return buf.tobytes()
 
 
-def decal_png(project, vendor, pdir: Path) -> bytes:
+def decal_png(project, vendor, pdir: Path, cs=None) -> bytes:
     rq = ref_quad(project)
     aspect = project["cover"].get("aspect_override") or quad_aspect(rq)
     logo = pdir / "logos" / vendor["logo"] if vendor.get("logo") else None
-    im = render_decal(vendor, project.get("style", {}), aspect, 900, logo)
+    im = render_decal(vendor, project.get("style", {}), aspect, 900, logo, cover_rgb(project, pdir, cs))
     import io
     b = io.BytesIO()
     bg = Image.new("RGBA", im.size, (90, 98, 110, 255))

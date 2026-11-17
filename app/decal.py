@@ -22,7 +22,8 @@ DEFAULT_STYLE = {
     "padding": 0.08,           # fraction of the smaller side
     "show_contact": True,
     "show_logo": True,
-    "logo_knockout_white": True,
+    "logo_knockout_white": True,   # remove the logo's plain / grey / gradient background
+    "logo_badge": "auto",          # white badge behind the logo: auto (when it blends with the cover) | always | never
     "tagline": "",             # optional extra line for every vendor, e.g. "Concept for"
     "opacity": 0.95,           # how solid the print is
     "realism": 0.8,            # 0 = flat sticker, 1 = follows cover lighting fully
@@ -66,17 +67,62 @@ def _hex(c, alpha=255):
 
 
 def _prep_logo(path, knockout):
+    """Load a logo; strip a plain/grey/gradient background by flood-filling in from the edges."""
+    import cv2
     im = Image.open(path).convert("RGBA")
     if max(im.size) > 1600:
         im.thumbnail((1600, 1600), Image.LANCZOS)
-    if knockout:
-        a = np.asarray(im).astype(np.float32)
-        m = a[..., :3].min(axis=2)
-        fade = np.clip((255 - m) / 20.0, 0, 1)  # near-white -> transparent, soft edge
-        a[..., 3] = np.where(m > 235, a[..., 3] * fade, a[..., 3])
-        im = Image.fromarray(a.astype(np.uint8), "RGBA")
-    bbox = im.getbbox()
+    a = np.asarray(im).copy()
+    border_alpha = np.concatenate([a[0, :, 3], a[-1, :, 3], a[:, 0, 3], a[:, -1, 3]])
+    if knockout and border_alpha.mean() > 250:          # no transparency yet
+        rgb = np.ascontiguousarray(a[..., :3])
+        h, w = rgb.shape[:2]
+        mask = np.zeros((h + 2, w + 2), np.uint8)
+        flags = 4 | cv2.FLOODFILL_MASK_ONLY | (255 << 8)
+        step = max(1, min(h, w) // 40)
+        seeds = [(x, 0) for x in range(0, w, step)] + [(x, h - 1) for x in range(0, w, step)] + \
+                [(0, y) for y in range(0, h, step)] + [(w - 1, y) for y in range(0, h, step)]
+        for (x, y) in seeds:
+            if mask[y + 1, x + 1] == 0:
+                cv2.floodFill(rgb, mask, (x, y), (0, 0, 0), (7, 7, 7), (7, 7, 7), flags)
+        bg = mask[1:-1, 1:-1] > 0
+        if 0.05 < bg.mean() < 0.97:
+            # enclosed holes (e.g. inside an 'O' or a ring) that have the background's colour
+            hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+            lum = hsv[..., 2][bg]
+            if np.median(hsv[..., 1][bg]) < 30:          # grey/white background
+                lo, hi = np.percentile(lum, 2) - 6, np.percentile(lum, 98) + 6
+                cand = (~bg) & (hsv[..., 1] < 30) & (hsv[..., 2] >= lo) & (hsv[..., 2] <= hi)
+                n, lab, st, _ = cv2.connectedComponentsWithStats(cand.astype(np.uint8), connectivity=4)
+                for k in range(1, n):
+                    if st[k, 4] > 0.002 * h * w:
+                        bg |= lab == k
+        if 0.05 < bg.mean() < 0.97:                      # sensible background found
+            soft = cv2.GaussianBlur((~bg).astype(np.float32), (0, 0), 0.8)
+            a[..., 3] = (a[..., 3].astype(np.float32) * soft).astype(np.uint8)
+    im = Image.fromarray(a, "RGBA")
+    bbox = im.getchannel("A").point(lambda v: 255 if v > 20 else 0).getbbox()
     return im.crop(bbox) if bbox else im
+
+
+def _lab(rgb):
+    import cv2
+    px = np.uint8([[list(rgb)]])
+    return cv2.cvtColor(px, cv2.COLOR_RGB2LAB)[0, 0].astype(np.float32)
+
+
+def logo_needs_badge(logo: Image.Image, cover_rgb) -> bool:
+    """True when the logo's main colour is too close to the cover colour to read."""
+    if cover_rgb is None:
+        return False
+    a = np.asarray(logo.convert("RGBA")).reshape(-1, 4)
+    a = a[a[:, 3] > 128][:, :3]
+    if len(a) < 20:
+        return False
+    cov = _lab(cover_rgb)
+    labs = np.asarray([_lab(c) for c in a[:: max(1, len(a) // 400)]])
+    dist = np.linalg.norm(labs - cov, axis=1)
+    return float(np.median(dist)) < 45
 
 
 def contact_lines(v):
@@ -84,7 +130,7 @@ def contact_lines(v):
     return [p.strip() for p in parts if p and str(p).strip()]
 
 
-def render_decal(vendor: dict, style: dict, aspect: float, width: int, logo_path=None) -> Image.Image:
+def render_decal(vendor: dict, style: dict, aspect: float, width: int, logo_path=None, cover_rgb=None) -> Image.Image:
     s = {**DEFAULT_STYLE, **(style or {})}
     W = int(width)
     H = max(10, int(round(W / max(0.05, aspect))))
@@ -106,6 +152,14 @@ def render_decal(vendor: dict, style: dict, aspect: float, width: int, logo_path
     if s["show_logo"] and logo_path and Path(logo_path).exists():
         try:
             logo = _prep_logo(logo_path, s["logo_knockout_white"])
+            badge = s.get("logo_badge", "auto")
+            if badge == "always" or (badge == "auto" and logo_needs_badge(logo, cover_rgb)):
+                pad = int(max(logo.size) * 0.12)
+                b = Image.new("RGBA", (logo.width + 2 * pad, logo.height + 2 * pad), (0, 0, 0, 0))
+                ImageDraw.Draw(b).rounded_rectangle([0, 0, b.width - 1, b.height - 1],
+                                                    radius=int(min(b.size) * 0.18), fill=(255, 255, 255, 245))
+                b.alpha_composite(logo, (pad, pad))
+                logo = b
         except Exception:
             logo = None
 

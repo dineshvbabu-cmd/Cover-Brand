@@ -112,8 +112,23 @@ def index():
 # ---------- projects ----------
 @app.get("/api/projects")
 def projects():
-    return [{k: p[k] for k in ("id", "name", "frames", "fps", "width", "height", "created")} |
-            {"vendors": len(p["vendors"])} for p in store.list_projects()]
+    out = []
+    for p in store.list_projects():
+        kfs = sorted(p.get("cover", {}).get("keyframes", []), key=lambda k: k["frame"])
+        out.append({k: p[k] for k in ("id", "name", "frames", "fps", "width", "height", "created")} |
+                   {"vendors": len(p["vendors"]), "thumb": kfs[0]["frame"] if kfs else p["frames"] // 3,
+                    "cover_ready": p.get("track", {}).get("status") == "done",
+                    "made": sum(1 for r in p.get("renders", {}).values() if r.get("status") == "done")})
+    return out
+
+
+@app.put("/api/projects/{pid}")
+def rename_project(pid: str, body: dict = Body(...)):
+    get_project(pid)
+    name = str(body.get("name", "")).strip()[:120]
+    if not name:
+        raise HTTPException(400, "Name required")
+    return store.update(pid, lambda p: p.update(name=name))
 
 
 @app.post("/api/projects")
@@ -159,10 +174,12 @@ def delete_project(pid: str):
 
 
 @app.get("/api/projects/{pid}/frame/{idx}.jpg")
-def frame(pid: str, idx: int):
+def frame(pid: str, idx: int, w: int = 0):
     p = get_project(pid)
     import cv2
     f = render.read_frame(store.local(pid, "source.mp4"), max(0, min(idx, p["frames"] - 1)))
+    if w and w < f.shape[1]:
+        f = cv2.resize(f, (w, int(f.shape[0] * w / f.shape[1])), interpolation=cv2.INTER_AREA)
     ok, buf = cv2.imencode(".jpg", f, [cv2.IMWRITE_JPEG_QUALITY, 82])
     return Response(buf.tobytes(), media_type="image/jpeg", headers={"Cache-Control": "max-age=3600"})
 
@@ -298,6 +315,26 @@ async def import_vendors(pid: str, files: list[UploadFile] = File(default=[]), t
     return {"added": len(added), "logos_matched": matched, "errors": errors, "vendors": p["vendors"]}
 
 
+@app.post("/api/projects/{pid}/vendors/copy")
+def copy_vendors(pid: str, body: dict = Body(...)):
+    """Re-use the vendor list (with logos) of another sample."""
+    get_project(pid)
+    src = get_project(str(body.get("from", "")))
+    new = vparse.dedupe(store.load(pid)["vendors"], [dict(v) for v in src["vendors"]])
+    copied = []
+    for v in new:
+        old_id, v["id"] = v["id"], store.new_id()
+        if v.get("logo"):
+            f = store.local(src["id"], f"logos/{v['logo']}")
+            if f.exists():
+                v["logo"] = _save_logo(pid, v["id"], f.name, f.read_bytes())
+            else:
+                v["logo"] = None
+        copied.append(v)
+    p = store.update(pid, lambda q: q["vendors"].extend(copied))
+    return {"added": len(copied), "vendors": p["vendors"]}
+
+
 @app.put("/api/projects/{pid}/vendors")
 def put_vendors(pid: str, body: list[dict] = Body(...)):
     get_project(pid)
@@ -359,7 +396,8 @@ def decal(pid: str, vid: str):
     if not p["cover"]["keyframes"]:
         raise HTTPException(400, "Mark the cover first")
     ensure_local(pid, find_vendor(p, vid))
-    return Response(render.decal_png(p, find_vendor(p, vid), store.pdir(pid)), media_type="image/png")
+    t = store.load_tracks(pid) or {}
+    return Response(render.decal_png(p, find_vendor(p, vid), store.pdir(pid), t.get("cs")), media_type="image/png")
 
 
 @app.get("/api/projects/{pid}/preview/{vid}/{idx}.jpg")

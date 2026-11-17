@@ -60,6 +60,16 @@
   .field input[type=range]{width:100%}
   .decal-prev{width:100%;border-radius:6px;border:1px solid var(--line);background:#5a626e;min-height:60px}
   .prev-img{width:100%;border-radius:8px;display:block;background:#111;min-height:120px}
+  .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+  .card{border:2px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;background:#fff;transition:border-color .15s}
+  .card:hover{border-color:var(--mist)} .card.sel{border-color:var(--accent);box-shadow:0 0 0 3px #e4572e22}
+  .card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:#ddd}
+  .card .meta{padding:8px 10px} .card .meta b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card .meta span{font-size:12px;color:var(--steel)}
+  .card.add{display:grid;place-items:center;border-style:dashed;border-color:var(--mist);min-height:170px;color:var(--steel);text-align:center;background:#faf8f2}
+  .card.add.over{border-color:var(--accent);background:#fff3ee}
+  .card.add b{color:var(--ink);font-size:15px}
+  #s2.done-cover .grid2{display:none}
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:50;max-width:80vw}
   .toast.show{opacity:1}
   .legend{font-size:12px;color:var(--steel)}
@@ -70,26 +80,31 @@
 <body>
 <header>
   <div class="logo">COVER<span>BRAND</span></div>
-  <select id="projSel"><option value="">Open a saved project…</option></select>
-  <button class="small" id="newProj" style="background:transparent;color:#fff;border-color:#fff">+ New video</button>
+  <select id="projSel" hidden><option value="">Open a saved project…</option></select>
+  <span id="curName" style="opacity:.85"></span>
   <div class="sp"></div>
-  <button class="small" id="delProj" style="background:transparent;color:#fff;border-color:#778da9" hidden>Delete project</button>
+  <button class="small" id="delProj" style="background:transparent;color:#fff;border-color:#778da9" hidden>Delete this sample</button>
 </header>
 
 <main>
   <!-- 1 upload -->
   <section id="s1">
-    <h2><span class="n">1</span>Upload the video <span class="hint">MP4, MOV, WEBM or GIF from the maker · up to 2 min</span></h2>
+    <h2><span class="n">1</span>Choose a product sample <span class="hint">Upload each product's standard video once, then just pick it</span></h2>
     <div class="body">
-      <div class="drop" id="videoDrop"><b>Drop the container cover video / GIF here</b><br>or click to choose a file</div>
+      <div class="gallery" id="gallery"></div>
       <input type="file" id="videoFile" accept="video/*,.gif" hidden>
-      <div id="vidInfo" class="muted" style="margin-top:10px"></div>
+      <div class="row" id="curBar" style="margin-top:12px;display:none">
+        <span class="muted">Selected:</span>
+        <input type="text" id="sampleName" style="min-width:260px;font-weight:600" title="Product name — click to rename">
+        <span id="vidInfo" class="muted"></span>
+      </div>
     </div>
   </section>
 
   <!-- 2 cover -->
   <section id="s2" class="locked">
-    <h2><span class="n">2</span>Mark the cover <span class="hint">Shows the app where to print the vendor name</span></h2>
+    <h2><span class="n">2</span>Mark the cover <span class="hint" id="coverHint">Shows the app where to print the vendor name</span>
+      <button class="small" id="editCover" style="margin-left:10px;display:none">Edit cover</button></h2>
     <div class="body grid2">
       <div>
         <div class="stage"><canvas id="cv"></canvas></div>
@@ -150,6 +165,7 @@
         <div>
           <textarea id="paste" placeholder="Or paste one vendor per line:&#10;Ocean Edge Marine, Ravi Kumar, ravi@oceanedge.com, +91 98400 12345, www.oceanedge.com&#10;Global Maritime Services, sales@globalmaritime.sg"></textarea>
           <div class="row" style="margin-top:6px"><button id="pasteBtn">Add pasted vendors</button><button id="addRow">+ Add vendor by hand</button></div>
+          <div class="row" style="margin-top:8px"><select id="copyFrom"><option value="">Use vendors from another sample…</option></select><button class="small" id="copyBtn">Copy</button></div>
         </div>
       </div>
       <div id="importMsg" class="muted" style="margin:10px 0"></div>
@@ -282,7 +298,9 @@ async function api(url, opt={}){
 const J = (method, body) => ({method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
 
 // ---------- projects ----------
+let LIST=[];
 async function loadProjects(sel){
+  LIST = await api("/api/projects"); renderGallery();
   const list = await api("/api/projects");
   const s = $("#projSel"); s.innerHTML = '<option value="">Open a saved project…</option>' +
     list.map(p=>`<option value="${p.id}">${esc(p.name)} · ${p.vendors} vendors</option>`).join("");
@@ -290,9 +308,22 @@ async function loadProjects(sel){
 }
 function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 $("#projSel").onchange = e => e.target.value ? openProject(e.target.value) : null;
-$("#newProj").onclick = () => { P=null; setLocked(); $("#vidInfo").textContent=""; $("#projSel").value=""; window.scrollTo(0,0); $("#videoFile").click(); };
-$("#delProj").onclick = async () => { if(!P || !confirm(`Delete project "${P.name}" and all its videos?`)) return;
-  await api(`/api/projects/${P.id}`, {method:"DELETE"}); P=null; setLocked(); loadProjects(); };
+function renderGallery(){
+  const g=$("#gallery");
+  g.innerHTML = LIST.map(p=>`<div class="card ${P&&P.id===p.id?"sel":""}" data-id="${p.id}">
+      <img loading="lazy" src="/api/projects/${p.id}/frame/${p.thumb}.jpg?w=420">
+      <div class="meta"><b>${esc(p.name)}</b><span>${p.cover_ready?"Cover saved ✓":"Cover not marked yet"} · ${p.vendors} vendor${p.vendors==1?"":"s"}${p.made?` · ${p.made} made`:""}</span></div></div>`).join("")
+    + `<div class="card add" id="addSample"><div><b>+ Add product sample</b><br><span style="font-size:12px">Drop or click to upload<br>MP4 / MOV / WEBM / GIF · up to 2 min</span></div></div>`;
+  g.querySelectorAll(".card[data-id]").forEach(c=>c.onclick=()=>openProject(c.dataset.id));
+  const add=$("#addSample"); add.onclick=()=>$("#videoFile").click();
+  ["dragover","dragenter"].forEach(e=>add.addEventListener(e,ev=>{ev.preventDefault();add.classList.add("over")}));
+  ["dragleave","drop"].forEach(e=>add.addEventListener(e,ev=>{ev.preventDefault();add.classList.remove("over")}));
+  add.addEventListener("drop",ev=>ev.dataTransfer.files[0]&&uploadVideo(ev.dataTransfer.files[0]));
+}
+$("#sampleName").onchange=async e=>{ const n=e.target.value.trim(); if(!n||!P) return; P=await api(`/api/projects/${P.id}`, J("PUT",{name:n})); loadProjects(P.id); toast("Renamed"); };
+$("#editCover").onclick=()=>{ $("#s2").classList.toggle("done-cover"); $("#editCover").textContent=$("#s2").classList.contains("done-cover")?"Edit cover":"Hide"; draw(); };
+$("#delProj").onclick = async () => { if(!P || !confirm(`Delete the sample "${P.name}", its vendor list and all its videos?`)) return;
+  await api(`/api/projects/${P.id}`, {method:"DELETE"}); P=null; $("#curBar").style.display="none"; $("#curName").textContent=""; setLocked(); loadProjects(); };
 
 function setLocked(){
   const has = !!P, cover = has && P.cover.keyframes.length, tracked = has && P.track.status==="done";
@@ -307,7 +338,11 @@ function setLocked(){
 async function openProject(id){
   P = await api(`/api/projects/${id}`);
   localStorage && (()=>{ try{ localStorage.setItem("cb_last", id) }catch(e){} })();
-  $("#vidInfo").innerHTML = `<b>${esc(P.name)}</b> · ${P.width}×${P.height} · ${P.frames} frames @ ${(+P.fps).toFixed(1)} fps${P.is_gif?" · GIF (GIF + MP4 will be made)":""}`;
+  $("#vidInfo").innerHTML = `${P.width}×${P.height} · ${(P.frames/(+P.fps||25)).toFixed(1)} s${P.is_gif?" · GIF":""}`;
+  $("#importMsg").textContent=""; $("#curBar").style.display="flex"; $("#sampleName").value=P.name; $("#curName").textContent=P.name; renderGallery();
+  const ready=P.track.status==="done";
+  $("#s2").classList.toggle("done-cover", ready); $("#editCover").style.display=ready?"inline-flex":"none"; $("#editCover").textContent="Edit cover";
+  $("#coverHint").textContent = ready ? "Saved ✓ — this sample is ready, just add vendors" : "Shows the app where to print the vendor name";
   $("#scrub").max = P.frames-1; $("#pvScrub").max = P.frames-1;
   $("#mode").value = P.cover.mode;
   tracks = P.track.status==="done" ? await api(`/api/projects/${id}/tracks`) : null;
@@ -317,21 +352,18 @@ async function openProject(id){
   if(!k0) setTimeout(()=>autoFind(true), 300);
   $("#pvScrub").value = Math.floor(P.frames/2);
   loadFrame(); renderKfs(); renderTrackState(); renderVendors(); fillStyle(); fillFinish(); setLocked(); refreshPreview();
+  $("#copyFrom").innerHTML='<option value="">Use vendors from another sample…</option>'+LIST.filter(x=>x.id!==P.id&&x.vendors).map(x=>`<option value="${x.id}">${esc(x.name)} (${x.vendors})</option>`).join("");
   if(P.track.status==="running") pollTrack();
   pollRenders();
 }
 
 // ---------- upload video ----------
-const vd = $("#videoDrop");
-vd.onclick = () => $("#videoFile").click();
-["dragover","dragenter"].forEach(e=>vd.addEventListener(e, ev=>{ev.preventDefault(); vd.classList.add("over")}));
-["dragleave","drop"].forEach(e=>vd.addEventListener(e, ev=>{ev.preventDefault(); vd.classList.remove("over")}));
-vd.addEventListener("drop", ev => ev.dataTransfer.files[0] && uploadVideo(ev.dataTransfer.files[0]));
 $("#videoFile").onchange = e => e.target.files[0] && uploadVideo(e.target.files[0]);
 async function uploadVideo(f){
-  const fd = new FormData(); fd.append("file", f); fd.append("name", f.name.replace(/\.[^.]+$/,""));
-  $("#vidInfo").textContent = "Uploading and preparing video…";
-  try{ const p = await api("/api/projects", {method:"POST", body:fd}); await loadProjects(p.id); await openProject(p.id); toast("Video ready — now mark the cover"); $("#s2").scrollIntoView({behavior:"smooth"}); }
+  const nm = prompt("Product name for this sample video (e.g. Curtain-sider trailer):", f.name.replace(/\.[^.]+$/,"")) || f.name.replace(/\.[^.]+$/,"");
+  const fd = new FormData(); fd.append("file", f); fd.append("name", nm);
+  $("#curBar").style.display="flex"; $("#vidInfo").textContent = "Uploading and preparing video…";
+  try{ const p = await api("/api/projects", {method:"POST", body:fd}); await loadProjects(p.id); await openProject(p.id); toast("Sample added — check the cover, then Save cover position"); $("#s2").scrollIntoView({behavior:"smooth"}); }
   catch(e){ $("#vidInfo").textContent = "Error: "+e.message; }
 }
 
@@ -429,7 +461,8 @@ function renderTrackState(){
 async function pollTrack(){
   const p = await api(`/api/projects/${P.id}`); P.track=p.track; renderTrackState();
   if(p.track.status==="running") return setTimeout(pollTrack, 900);
-  if(p.track.status==="done"){ tracks = await api(`/api/projects/${P.id}/tracks`); P=p; draw(); setLocked(); refreshPreview(); toast("Cover saved — move the slider to check, then add vendors"); }
+  if(p.track.status==="done"){ tracks = await api(`/api/projects/${P.id}/tracks`); P=p; draw(); setLocked(); refreshPreview(); toast("Cover saved — move the slider to check, then add vendors");
+    $("#editCover").style.display="inline-flex"; $("#coverHint").textContent="Saved ✓ — this sample is ready, just add vendors"; loadProjects(P.id); }
 }
 
 // ---------- vendors ----------
@@ -439,6 +472,9 @@ vdz.onclick=()=>$("#vendFile").click();
 ["dragleave","drop"].forEach(e=>vdz.addEventListener(e,ev=>{ev.preventDefault();vdz.classList.remove("over")}));
 vdz.addEventListener("drop",ev=>importVendors(ev.dataTransfer.files,""));
 $("#vendFile").onchange=e=>{ importVendors(e.target.files,""); e.target.value=""; };
+$("#copyBtn").onclick=async()=>{ const from=$("#copyFrom").value; if(!from){ toast("Pick a sample to copy vendors from"); return; }
+  const r=await api(`/api/projects/${P.id}/vendors/copy`, J("POST",{from})); P.vendors=r.vendors; renderVendors(); setLocked(); renderLinks(); fillPvVendors(); loadProjects(P.id);
+  $("#importMsg").innerHTML=`Copied <b>${r.added}</b> vendor(s) with their logos.`; };
 $("#pasteBtn").onclick=()=>{ if($("#paste").value.trim()) importVendors([], $("#paste").value).then(()=>$("#paste").value=""); };
 async function importVendors(files, text){
   const fd=new FormData(); [...files].forEach(f=>fd.append("files",f)); fd.append("text",text);

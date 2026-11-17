@@ -217,15 +217,21 @@ def colour_stats(frame_bgr, quad) -> dict:
     return {"h": float(h), "s": float(np.median(px[:, 1])), "v": float(np.median(px[:, 2]))}
 
 
-def colour_mask(hsv, cs, tol=12):
-    return ((_hue_diff(hsv[..., 0], cs["h"]) < tol) & (hsv[..., 1] > max(40, cs["s"] * 0.55))
-            & (hsv[..., 2] > cs["v"] * 0.62)).astype(np.uint8) * 255
+def colour_mask(hsv, cs, tol=12, loose=False):
+    """Pixels of the cover colour. loose=True also keeps fabric in fold shadows (for printing)."""
+    sk, vk = (0.38, 0.40) if loose else (0.55, 0.62)
+    return ((_hue_diff(hsv[..., 0], cs["h"]) < (tol + 4 if loose else tol)) & (hsv[..., 1] > max(35, cs["s"] * sk))
+            & (hsv[..., 2] > cs["v"] * vk)).astype(np.uint8) * 255
 
 
 def _order(q):
+    """TL, TR, BR, BL - top pair = two smallest y, then by x (robust for narrow/tall shapes)."""
     q = np.asarray(q, np.float32)
-    s, d = q.sum(1), np.diff(q, axis=1).ravel()
-    return np.float32([q[np.argmin(s)], q[np.argmin(d)], q[np.argmax(s)], q[np.argmax(d)]])
+    idx = np.argsort(q[:, 1])
+    top, bot = q[idx[:2]], q[idx[2:]]
+    top = top[np.argsort(top[:, 0])]
+    bot = bot[np.argsort(bot[:, 0])]
+    return np.float32([top[0], top[1], bot[1], bot[0]])
 
 
 def _quad_from_region(reg):
@@ -311,33 +317,37 @@ def track_colour(video_path, width, n_frames, keyframes, progress=None):
     q0, sol0, area0, g0 = _measure(frames[k0], cs)
     if q0 is None:
         raise ValueError("Couldn't find the cover colour on the saved frame - try 'Find cover automatically'")
-    fold_lim = g0 * 1.6 + 1.0
-    raw, ok = [], []
+    # Every frame: the print is mapped onto the cover-coloured fabric that is visible now.
+    # Closed curtain -> full panel. Opening -> the fabric bunches toward one end, so the
+    # print squeezes with it; closing -> it stretches back. Lost -> fade out.
+    raw = []
+    min_area = 0.04 * area0
     for i, f in enumerate(frames):
         q, sol, area, g = _measure(f, cs)
-        good = (q is not None and 0.92 < sol < 1.09 and 0.6 < area / max(1.0, area0) < 1.6 and g < fold_lim)
-        raw.append(q if q is not None else None)
-        ok.append(bool(good))
+        good = q is not None and sol > 0.6 and area > min_area
+        raw.append(q if good else None)
         if progress and i % 25 == 0:
             progress(i / n)
-    # remove 1-2 frame flickers, then fade in/out over ~0.3 s
-    okv = np.array(ok, np.float32)
+    okv = np.array([r is not None for r in raw], np.float32)
     okv = np.array([okv[max(0, i - 2):i + 3].mean() >= 0.6 for i in range(n)], np.float32)
-    fade = 8
+    fade = 6
     hidden = np.where(okv == 0)[0]
     vis = np.zeros(n, np.float32)
     for i in range(n):
-        if okv[i]:
+        if okv[i] and raw[i] is not None:
             d = np.min(np.abs(hidden - i)) if len(hidden) else 10 ** 6
             vis[i] = min(1.0, d / fade)
-    # smooth corners inside visible runs; hold last good quad elsewhere
-    quads, last = [], ref_q
-    good_idx = [i for i in range(n) if ok[i] and raw[i] is not None]
-    arr = {i: raw[i] for i in good_idx}
+    # outlier-robust smoothing of the corners: median of 5, then mean of 3
+    arr = np.array([r if r is not None else np.full((4, 2), np.nan, np.float32) for r in raw], np.float32)
+    med = np.empty_like(arr)
     for i in range(n):
-        if i in arr:
-            win = [arr[j] for j in range(i - 3, i + 4) if j in arr]
-            last = np.mean(win, axis=0)
+        med[i] = np.nanmedian(arr[max(0, i - 2):i + 3], axis=0) if not np.all(np.isnan(arr[max(0, i - 2):i + 3])) else np.nan
+    quads, last = [], ref_q
+    for i in range(n):
+        w = med[max(0, i - 1):i + 2]
+        w = w[~np.isnan(w).any(axis=(1, 2))]
+        if len(w):
+            last = w.mean(axis=0)
         quads.append((last / sc).tolist())
     conf = [1.0 if v > 0 else 0.0 for v in vis]
     while len(quads) < n_frames:
