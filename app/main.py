@@ -137,7 +137,7 @@ async def create_project(file: UploadFile = File(...), name: str = Form("")):
         raw.unlink(missing_ok=True)
     p = {"id": pid, "name": name or Path(file.filename or "concept").stem, "created": time.time(),
          "original": raw.name, "is_gif": ext == ".gif", **info,
-         "cover": {"mode": "auto", "keyframes": [], "aspect_override": None},
+         "cover": {"mode": "colour", "keyframes": [], "aspect_override": None},
          "track": {"status": "none", "progress": 0, "error": ""},
          "vendors": [], "style": dict(DEFAULT_STYLE), "renders": {}, "finish": dict(fin.DEFAULT_FINISH)}
     store.save(pid, p)
@@ -168,6 +168,24 @@ def frame(pid: str, idx: int):
 
 
 # ---------- cover marking + tracking ----------
+@app.get("/api/projects/{pid}/detect/{idx}")
+def detect_cover(pid: str, idx: int):
+    """Find a coloured cover automatically on this frame (or another frame if not visible here)."""
+    p = get_project(pid)
+    src = store.local(pid, "source.mp4")
+    idx = max(0, min(idx, p["frames"] - 1))
+    q = tracking.find_cover(render.read_frame(src, idx))
+    if not q:
+        for j in range(0, p["frames"], max(1, p["frames"] // 8)):
+            q = tracking.find_cover(render.read_frame(src, j))
+            if q:
+                idx = j
+                break
+    if not q:
+        raise HTTPException(404, "No clearly coloured cover found - drag the dots by hand")
+    return {"frame": idx, "quad": q}
+
+
 @app.put("/api/projects/{pid}/cover")
 def set_cover(pid: str, body: dict = Body(...)):
     get_project(pid)
@@ -189,9 +207,13 @@ def _run_track(pid):
 
         def prog(x):
             store.update(pid, lambda q: q["track"].update(progress=round(x, 3)))
-        quads, conf = tracking.track(str(store.local(pid, "source.mp4")), p["width"], p["frames"],
-                                     p["cover"]["mode"], p["cover"]["keyframes"], prog)
-        store.save_tracks(pid, {"quads": quads, "conf": conf})
+        src = str(store.local(pid, "source.mp4"))
+        if p["cover"]["mode"] == "colour":
+            quads, conf, vis, cs = tracking.track_colour(src, p["width"], p["frames"], p["cover"]["keyframes"], prog)
+            store.save_tracks(pid, {"quads": quads, "conf": conf, "vis": vis, "cs": cs})
+        else:
+            quads, conf = tracking.track(src, p["width"], p["frames"], p["cover"]["mode"], p["cover"]["keyframes"], prog)
+            store.save_tracks(pid, {"quads": quads, "conf": conf})
         low = sum(1 for c in conf if c < 0.15)
         store.update(pid, lambda q: q.update(track={"status": "done", "progress": 1, "error": "",
                                                     "low_confidence_frames": low}))
@@ -219,8 +241,8 @@ def tracks(pid: str):
 def _quads_or_400(pid, p):
     t = store.load_tracks(pid)
     if not t or p["track"]["status"] != "done":
-        raise HTTPException(400, "Track the cover first (step 2)")
-    return t["quads"]
+        raise HTTPException(400, "Save the cover position first (step 2)")
+    return t if t.get("cs") else t["quads"]
 
 
 # ---------- vendors ----------
@@ -356,7 +378,8 @@ def _run_render(pid, vid):
     try:
         p = store.load(pid)
         v = find_vendor(p, vid)
-        quads = store.load_tracks(pid)["quads"]
+        t = store.load_tracks(pid)
+        quads = t if t.get("cs") else t["quads"]
         ensure_local(pid, v)
         out = store.pdir(pid) / "out" / f"{vid}.mp4"
         out.parent.mkdir(parents=True, exist_ok=True)

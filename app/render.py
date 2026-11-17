@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image
 
 from .decal import render_decal
+from .tracking import colour_mask
 
 
 def ingest(src: Path, out_mp4: Path, max_w: int = 1920, max_seconds: int = 120) -> dict:
@@ -58,6 +59,7 @@ def ref_quad(project) -> list:
 
 
 def make_decal(project, vendor, pdir: Path, quads) -> np.ndarray:
+    quads, _, _ = _tracks(quads)
     """BGRA numpy decal, sized to the cover's largest on-screen width."""
     rq = ref_quad(project)
     aspect = project["cover"].get("aspect_override") or quad_aspect(rq)
@@ -77,7 +79,17 @@ def reference_luma(project, video: Path) -> float:
     return float(np.median(g[m > 0])) / 255.0 if m.any() else 0.5
 
 
-def composite(frame: np.ndarray, decal: np.ndarray, quad, style: dict, lref: float) -> np.ndarray:
+def _tracks(tr):
+    """Accept either a plain list of quads or the tracks dict {quads, vis, cs}."""
+    if isinstance(tr, dict):
+        return tr["quads"], tr.get("vis"), tr.get("cs")
+    return tr, None, None
+
+
+def composite(frame: np.ndarray, decal: np.ndarray, quad, style: dict, lref: float,
+              vis: float = 1.0, cs: dict | None = None) -> np.ndarray:
+    if vis is not None and vis <= 0.01:
+        return frame
     h, w = frame.shape[:2]
     q = np.asarray(quad, np.float32)
     x0, y0 = np.floor(q.min(axis=0)).astype(int) - 2
@@ -91,7 +103,11 @@ def composite(frame: np.ndarray, decal: np.ndarray, quad, style: dict, lref: flo
     warped = cv2.warpPerspective(decal, M, (x1 - x0, y1 - y0), flags=cv2.INTER_LINEAR,
                                  borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
     roi = frame[y0:y1, x0:x1].astype(np.float32)
-    alpha = warped[..., 3:4].astype(np.float32) / 255.0 * float(style.get("opacity", 0.95))
+    alpha = warped[..., 3:4].astype(np.float32) / 255.0 * float(style.get("opacity", 0.95)) * float(vis or 1.0)
+    if cs:  # print only on the cover fabric (not on posts, cargo, background)
+        cm = colour_mask(cv2.cvtColor(roi.astype(np.uint8), cv2.COLOR_BGR2HSV), cs).astype(np.float32) / 255.0
+        cm = cv2.GaussianBlur(cv2.morphologyEx(cm, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)), (0, 0), 1.5)
+        alpha = alpha * cm[..., None]
     rgb = warped[..., :3].astype(np.float32)
     realism = float(style.get("realism", 0.8))
     if realism > 0:
@@ -111,6 +127,7 @@ def render_vendor(project, vendor, pdir: Path, quads, out_mp4: Path, make_gif: b
     style = project.get("style", {})
     decal = make_decal(project, vendor, pdir, quads)
     lref = reference_luma(project, src)
+    quads, vis, cs = _tracks(quads)
     w, h, fps = project["width"], project["height"], project["fps"]
     tmp = out_mp4.with_suffix(".part.mp4")
     cmd = ["ffmpeg", "-y", "-v", "error",
@@ -127,7 +144,7 @@ def render_vendor(project, vendor, pdir: Path, quads, out_mp4: Path, make_gif: b
             if not ok:
                 break
             q = quads[min(i, n - 1)]
-            f = composite(f, decal, q, style, lref)
+            f = composite(f, decal, q, style, lref, vis[min(i, len(vis) - 1)] if vis else 1.0, cs)
             p.stdin.write(f.tobytes())
             i += 1
             if progress and i % 10 == 0:
@@ -155,7 +172,10 @@ def preview(project, vendor, pdir: Path, quads, idx: int) -> bytes:
     src = pdir / "source.mp4"
     f = read_frame(src, idx)
     decal = make_decal(project, vendor, pdir, quads)
-    f = composite(f, decal, quads[min(idx, len(quads) - 1)], project.get("style", {}), reference_luma(project, src))
+    qs, vis, cs = _tracks(quads)
+    j = min(idx, len(qs) - 1)
+    f = composite(f, decal, qs[j], project.get("style", {}), reference_luma(project, src),
+                  vis[min(j, len(vis) - 1)] if vis else 1.0, cs)
     ok, buf = cv2.imencode(".jpg", f, [cv2.IMWRITE_JPEG_QUALITY, 88])
     return buf.tobytes()
 

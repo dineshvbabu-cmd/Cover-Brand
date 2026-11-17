@@ -168,7 +168,10 @@ def load_tracks(pid: str):
     if MONGO_URL:
         db, _ = _mongo()
         d = db.tracks.find_one({"_id": _safe(pid)})
-        return {"quads": d["quads"], "conf": d["conf"]} if d else None
+        if not d:
+            return None
+        d.pop("_id", None)
+        return d
     f = pdir(pid) / "tracks.json"
     return json.loads(f.read_text()) if f.exists() else None
 

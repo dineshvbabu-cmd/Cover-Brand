@@ -103,20 +103,21 @@
       </div>
       <div>
         <ol class="muted" style="padding-left:18px;margin:0 0 14px;line-height:1.7">
-          <li>Use the slider to find a frame where the cover is clearly visible.</li>
-          <li>Drag the <b style="color:var(--accent)">4 orange dots</b> onto the corners of the area where the name should print.</li>
-          <li>Click <b>Save cover position</b>. The app follows the cover through the whole video.</li>
+          <li>The app finds the cover for you (orange dots). If they're off, drag them onto the cover's corners, or click <i>Find cover automatically</i>.</li>
+          <li>Click <b>Save cover position</b>. The app finds the cover in every frame.</li>
         </ol>
+        <button id="autoFind" style="width:100%;justify-content:center;margin-bottom:8px">🔍 Find cover automatically</button>
         <button class="primary" id="saveCover" style="width:100%;justify-content:center;padding:11px">Save cover position</button>
         <div class="row" style="margin-top:10px"><div class="bar" style="flex:1"><div id="trackBar"></div></div><span id="trackStatus" class="muted"></span></div>
-        <p class="muted" style="font-size:12px;margin:10px 0 0">When it says <b>Ready</b>, move the slider: the green box should stay on the cover.</p>
+        <p class="muted" style="font-size:12px;margin:10px 0 0" id="coverNote">When it says <b>Ready</b>, move the slider: the green box should stay on the cover. If the curtain opens, the name fades out while it is folded and comes back when it closes.</p>
         <details style="margin-top:14px">
           <summary class="muted" style="cursor:pointer">More options (if the print slips)</summary>
           <div style="margin-top:10px">
             <div class="field">
               <label>How does the cover move?</label>
               <select id="mode">
-                <option value="auto">It moves / camera moves — follow it automatically</option>
+                <option value="colour">Coloured cover / curtain — find it by colour in every frame</option>
+                <option value="auto">Plain cover — follow it by its texture</option>
                 <option value="manual">Moves — I'll set corners at a few frames</option>
                 <option value="static">Doesn't move — same spot every frame</option>
               </select>
@@ -313,6 +314,7 @@ async function openProject(id){
   const k0 = P.cover.keyframes[0];
   cur = k0 ? k0.frame : 0; $("#scrub").value = cur;
   quad = k0 ? k0.quad.map(p=>[...p]) : defaultQuad();
+  if(!k0) setTimeout(()=>autoFind(true), 300);
   $("#pvScrub").value = Math.floor(P.frames/2);
   loadFrame(); renderKfs(); renderTrackState(); renderVendors(); fillStyle(); fillFinish(); setLocked(); refreshPreview();
   if(P.track.status==="running") pollTrack();
@@ -346,8 +348,10 @@ function draw(){
   if(img.complete) ctx.drawImage(img,0,0,P.width,P.height);
   const lw = Math.max(2, P.width/400), r = Math.max(7, P.width/110);
   if(tracks && tracks.quads[cur]){
+    const hidden = tracks.vis && (tracks.vis[cur]??1) <= 0.01;
     const low = (tracks.conf[cur]??1) < 0.15;
-    poly(tracks.quads[cur], low? "#ffd166":"#3ddc97", lw, [lw*4,lw*3]);
+    if(!hidden) poly(tracks.quads[cur], low? "#ffd166":"#3ddc97", lw, [lw*4,lw*3]);
+    else { ctx.save(); ctx.fillStyle="rgba(13,27,42,.7)"; ctx.fillRect(10,10,P.width*0.42,P.height*0.07); ctx.fillStyle="#fff"; ctx.font=`${P.height*0.035}px system-ui`; ctx.fillText("Name hidden here (cover open/folded)",22,10+P.height*0.048); ctx.restore(); }
   }
   poly(quad, "#e4572e", lw);
   ["TL","TR","BR","BL"].forEach((t,i)=>{ const [x,y]=quad[i];
@@ -396,6 +400,7 @@ function renderKfs(){
     const d=ev.target.dataset.del; if(d!==undefined){ P.cover.keyframes=P.cover.keyframes.filter(k=>k.frame!=d); await saveCover(); return; }
     goFrame(+c.dataset.f); });
 }
+$("#autoFind").onclick = () => autoFind(false);
 $("#saveCover").onclick = async () => {
   if($("#mode").value!=="manual") P.cover.keyframes = P.cover.keyframes.filter(k=>k.frame===cur);
   P.cover.keyframes = P.cover.keyframes.filter(k=>k.frame!==cur).concat([{frame:cur, quad:quad.map(p=>p.map(v=>Math.round(v*10)/10))}]).sort((a,b)=>a.frame-b.frame);
@@ -405,10 +410,21 @@ $("#trackBtn").onclick = async () => {
   if(!P.cover.keyframes.length){ toast("Drag the dots onto the cover, then click Save cover position"); return; }
   try{ await api(`/api/projects/${P.id}/track`, {method:"POST"}); P.track.status="running"; renderTrackState(); pollTrack(); }catch(e){ toast(e.message) }
 };
+function visText(){
+  const v=tracks.vis, fps=+P.fps||25; let runs=[], on=false, st=0;
+  v.forEach((x,i)=>{ if(x>0&&!on){on=true;st=i} if(x<=0&&on){on=false;runs.push([st,i-1])} }); if(on) runs.push([st,v.length-1]);
+  if(!runs.length) return "Ready, but the cover was never clearly visible: drag the dots onto it and save again";
+  return "Ready ✓ · name visible at "+runs.map(([a,b])=>`${(a/fps).toFixed(1)}–${(b/fps).toFixed(1)}s`).join(", ");
+}
+async function autoFind(silent){
+  try{ const r=await api(`/api/projects/${P.id}/detect/${cur}`); if(r.frame!==cur){ cur=r.frame; $("#scrub").value=cur; loadFrame(); }
+    quad=r.quad.map(p=>[...p]); if($("#mode").value!=="colour" && P.cover.mode!=="colour"){ $("#mode").value="colour"; } draw(); if(!silent) toast("Cover found — check the dots, then click Save cover position"); }
+  catch(e){ if(!silent) toast(e.message,4000); }
+}
 function renderTrackState(){
   const t=P.track; $("#trackBar").style.width = (t.status==="done"?100:(t.progress||0)*100)+"%";
   $("#trackStatus").textContent = {none:"Not saved yet", stale:"Corners changed — click Save cover position", running:"Following the cover…", error:"Error: "+t.error,
-    done: t.low_confidence_frames ? `Ready · check ${t.low_confidence_frames} shaky frames (yellow)` : "Ready ✓"}[t.status]||"";
+    done: (tracks&&tracks.vis) ? visText() : (t.low_confidence_frames ? `Ready · check ${t.low_confidence_frames} shaky frames (yellow)` : "Ready ✓")}[t.status]||"";
 }
 async function pollTrack(){
   const p = await api(`/api/projects/${P.id}`); P.track=p.track; renderTrackState();
