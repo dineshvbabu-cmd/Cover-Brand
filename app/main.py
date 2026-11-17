@@ -13,6 +13,7 @@ from pathlib import Path
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
+from . import finishing as fin
 from . import render, store, tracking, vendors as vparse
 from .decal import DEFAULT_STYLE
 
@@ -20,6 +21,7 @@ APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")
 STATIC = Path(__file__).parent / "static"
 pool = ThreadPoolExecutor(max_workers=int(os.environ.get("RENDER_WORKERS", "2")))
+finish_pool = ThreadPoolExecutor(max_workers=6)  # mostly waiting on Shotstack
 app = FastAPI(title="CoverBrand")
 
 
@@ -27,7 +29,7 @@ app = FastAPI(title="CoverBrand")
 @app.middleware("http")
 async def auth(request: Request, call_next):
     path = request.url.path
-    public = path.startswith("/s/") or path.startswith("/media/") or path == "/health"
+    public = path.startswith(("/s/", "/media/", "/assets/")) or path == "/health"
     if APP_PASSWORD and not public:
         h = request.headers.get("authorization", "")
         ok = False
@@ -76,6 +78,12 @@ def recover_interrupted_jobs():
                     if r.get("status") in ("queued", "rendering"):
                         r.update(status="error", error="Interrupted by a restart - click Re-render")
             store.update(pr["id"], fn)
+            # resume Shotstack jobs: they keep rendering on Shotstack's side
+            for vid, r in pr.get("renders", {}).items():
+                todo = [ra for ra, st in (r.get("finish") or {}).items()
+                        if st.get("status") in ("queued", "submitted", "rendering")]
+                if todo and fin.configured():
+                    finish_pool.submit(_run_finish, pr["id"], vid, todo)
     except Exception:
         traceback.print_exc()
 
@@ -131,14 +139,16 @@ async def create_project(file: UploadFile = File(...), name: str = Form("")):
          "original": raw.name, "is_gif": ext == ".gif", **info,
          "cover": {"mode": "auto", "keyframes": [], "aspect_override": None},
          "track": {"status": "none", "progress": 0, "error": ""},
-         "vendors": [], "style": dict(DEFAULT_STYLE), "renders": {}}
+         "vendors": [], "style": dict(DEFAULT_STYLE), "renders": {}, "finish": dict(fin.DEFAULT_FINISH)}
     store.save(pid, p)
     return p
 
 
 @app.get("/api/projects/{pid}")
 def project(pid: str):
-    return get_project(pid)
+    p = get_project(pid)
+    p["finish"] = {**fin.DEFAULT_FINISH, **(p.get("finish") or {})}
+    return p
 
 
 @app.delete("/api/projects/{pid}")
@@ -350,7 +360,7 @@ def _run_render(pid, vid):
         ensure_local(pid, v)
         out = store.pdir(pid) / "out" / f"{vid}.mp4"
         out.parent.mkdir(parents=True, exist_ok=True)
-        setr(status="rendering", progress=0)
+        setr(status="rendering", progress=0, finish={})
         render.render_vendor(p, v, store.pdir(pid), quads, out, p.get("is_gif", False),
                              lambda x: setr(progress=round(x, 3)))
         for ext in ("mp4", "gif", "jpg"):
@@ -359,14 +369,18 @@ def _run_render(pid, vid):
                 store.put_file(pid, f"out/{vid}.{ext}", f)
         import time
         setr(status="done", progress=1, error="", rendered_at=time.time(), has_gif=p.get("is_gif", False))
+        f = {**fin.DEFAULT_FINISH, **(p.get("finish") or {})}
+        if f.get("enabled") and fin.configured() and f.get("ratios"):
+            _queue_finish(pid, [vid], f["ratios"])
     except Exception as e:
         traceback.print_exc()
         setr(status="error", error=str(e))
 
 
 @app.post("/api/projects/{pid}/render")
-def start_render(pid: str, body: dict = Body(default={})):
+def start_render(pid: str, request: Request, body: dict = Body(default={})):
     p = get_project(pid)
+    store.update(pid, lambda q: q.update(base_url=base_url(request)))
     _quads_or_400(pid, p)
     ids = body.get("vendor_ids") or [v["id"] for v in p["vendors"]]
     if not ids:
@@ -398,7 +412,10 @@ def links(pid: str, request: Request):
                     "error": r.get("error", ""),
                     "share_url": f"{b}/s/{r['token']}" if r.get("token") else "",
                     "video_url": f"{b}/media/{r['token']}.mp4" if r.get("status") == "done" else "",
-                    "gif_url": f"{b}/media/{r['token']}.gif" if r.get("status") == "done" and r.get("has_gif") else ""})
+                    "gif_url": f"{b}/media/{r['token']}.gif" if r.get("status") == "done" and r.get("has_gif") else "",
+                    "finish": {ra: {"status": st.get("status"), "error": st.get("error", ""),
+                                    "url": f"{b}/media/{r['token']}/{fin.SLUG[ra]}.mp4" if st.get("status") == "done" else ""}
+                               for ra, st in (r.get("finish") or {}).items()}})
     return out
 
 
@@ -418,6 +435,11 @@ def zip_all(pid: str, request: Request):
             gif = store.local(pid, f"out/{l['vendor_id']}.gif")
             if gif.exists():
                 z.write(gif, f"{safe}.gif")
+            for ra, st in l["finish"].items():
+                if st["status"] == "done":
+                    ff = store.local(pid, f"out/{l['vendor_id']}_{fin.SLUG[ra]}.mp4")
+                    if ff.exists():
+                        z.write(ff, f"{safe} - {fin.SLUG[ra]}.mp4")
             w.writerow([l["name"], l["email"], l["share_url"], fn])
         z.writestr("share_links.csv", s.getvalue())
     name = "".join(c if c.isalnum() else "_" for c in p["name"])
@@ -433,6 +455,132 @@ def out_thumb(pid: str, vid: str):
     return FileResponse(f)
 
 
+# ---------- designer finishing (Shotstack) ----------
+@app.get("/api/finishing/options")
+def finishing_options():
+    return {"configured": fin.configured(), "env": fin.env_label(), "presets": fin.PRESETS,
+            "music": {k: {"label": v[0], "url": v[1]} for k, v in fin.MUSIC.items()}, "ratios": list(fin.SIZES), "defaults": fin.DEFAULT_FINISH}
+
+
+@app.put("/api/projects/{pid}/finish")
+def set_finish(pid: str, body: dict = Body(...)):
+    get_project(pid)
+    clean = {k: body[k] for k in fin.DEFAULT_FINISH if k in body}
+    if "ratios" in clean:
+        clean["ratios"] = [r for r in clean["ratios"] if r in fin.SIZES]
+    if "music" in clean and clean["music"] not in fin.MUSIC:
+        clean["music"] = "none"
+
+    def fn(p):
+        p["finish"] = {**fin.DEFAULT_FINISH, **(p.get("finish") or {}), **clean}
+    return store.update(pid, fn)["finish"]
+
+
+@app.get("/api/projects/{pid}/finish/preview/{vid}/{ratio}.jpg")
+def finish_preview(pid: str, vid: str, ratio: str, scene: str = "intro"):
+    """Local still of the template (no Shotstack credits used)."""
+    from PIL import Image
+    p = get_project(pid)
+    v = find_vendor(p, vid)
+    ra = fin.RATIO_OF.get(ratio, ratio)
+    if ra not in fin.SIZES:
+        raise HTTPException(404)
+    ensure_local(pid, v)
+    f = {**fin.DEFAULT_FINISH, **(p.get("finish") or {})}
+    out = store.local(pid, f"out/{vid}.jpg")
+    if out.exists():
+        frame = Image.open(out)
+    else:
+        import cv2
+        fr = render.read_frame(store.local(pid, "source.mp4"), p["frames"] // 2)
+        frame = Image.fromarray(cv2.cvtColor(fr, cv2.COLOR_BGR2RGB))
+    logo = None
+    if v.get("logo"):
+        lp = store.local(pid, f"logos/{v['logo']}")
+        if lp.exists():
+            logo = Image.open(lp)
+    els, total = fin.BUILDERS.get(f["preset"], fin.corporate)(
+        v, ra, p["frames"] / float(p["fps"] or 25), p["width"] / p["height"], f, "logo" if logo else None)
+    t = {"intro": 2.6, "clip": 5.0, "end": total - 0.6}.get(scene, 2.6)
+    im = fin.mock_frame(els, ra, t, frame, logo, f["dark"])
+    im.thumbnail((960, 960))
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=85)
+    return Response(buf.getvalue(), media_type="image/jpeg")
+
+
+def _queue_finish(pid, vids, ratios):
+    def fn(q):
+        for vid in vids:
+            r = q["renders"].setdefault(vid, {})
+            fs = r.setdefault("finish", {})
+            for ra in ratios:
+                fs[ra] = {"status": "queued", "error": ""}
+    store.update(pid, fn)
+    for vid in vids:
+        finish_pool.submit(_run_finish, pid, vid, list(ratios))
+
+
+def _run_finish(pid, vid, ratios):
+    def setf(ra, **kw):
+        store.update(pid, lambda q: q["renders"][vid].setdefault("finish", {}).setdefault(ra, {}).update(kw))
+    try:
+        p = store.load(pid)
+        v = find_vendor(p, vid)
+        r = p["renders"].get(vid, {})
+        b = PUBLIC_URL or p.get("base_url", "")
+        tok = r["token"]
+        urls = {"video": f"{b}/media/{tok}.mp4", "fonts": f"{b}/assets/fonts/",
+                "logo": f"{b}/media/{tok}/logo.png" if v.get("logo") else None}
+        ids = {}
+        for ra in ratios:
+            st = (r.get("finish") or {}).get(ra, {})
+            if st.get("id") and st.get("status") in ("submitted", "rendering"):
+                ids[ra] = st["id"]  # resuming after a restart
+                continue
+            try:
+                rid = fin.submit(fin.build_edit(p, v, ra, urls))
+                ids[ra] = rid
+                setf(ra, status="submitted", id=rid, error="")
+            except Exception as e:
+                setf(ra, status="error", error=str(e))
+        for ra, rid in ids.items():
+            try:
+                res = fin.wait(rid)
+                if res.get("status") != "done":
+                    setf(ra, status="error", error=res.get("error") or "Shotstack render failed")
+                    continue
+                setf(ra, status="rendering")
+                dest = store.pdir(pid) / "out" / f"{vid}_{fin.SLUG[ra]}.mp4"
+                fin.download(res["url"], dest)
+                store.put_file(pid, f"out/{vid}_{fin.SLUG[ra]}.mp4", dest)
+                setf(ra, status="done", error="")
+            except Exception as e:
+                setf(ra, status="error", error=str(e))
+    except Exception as e:
+        traceback.print_exc()
+        for ra in ratios:
+            setf(ra, status="error", error=str(e))
+
+
+@app.post("/api/projects/{pid}/finish/render")
+def start_finish(pid: str, request: Request, body: dict = Body(default={})):
+    if not fin.configured():
+        raise HTTPException(400, "Add SHOTSTACK_API_KEY in Railway to enable designer finishing")
+    p = get_project(pid)
+    store.update(pid, lambda q: q.update(base_url=base_url(request)))
+    f = {**fin.DEFAULT_FINISH, **(p.get("finish") or {})}
+    ratios = [r for r in (body.get("ratios") or f["ratios"]) if r in fin.SIZES]
+    ids = body.get("vendor_ids") or [v["id"] for v in p["vendors"]]
+    ready = [vid for vid in ids if p["renders"].get(vid, {}).get("status") == "done"]
+    if not ready:
+        raise HTTPException(400, "Render the cover clips first (step 5)")
+    if not ratios:
+        raise HTTPException(400, "Pick at least one size")
+    _queue_finish(pid, ready, ratios)
+    return {"queued": len(ready) * len(ratios), "skipped": len(ids) - len(ready)}
+
+
 # ---------- public share pages ----------
 def _share(token):
     s = store.get_share(token)
@@ -442,6 +590,51 @@ def _share(token):
     v = find_vendor(p, s["vid"])
     r = p["renders"].get(v["id"], {})
     return p, v, r
+
+
+FONT_NAMES = set(fin.FONT_FILES.values())
+
+
+@app.get("/assets/fonts/{name}")
+def font_file(name: str):
+    if name not in FONT_NAMES:
+        raise HTTPException(404)
+    return FileResponse(fin.FONT_DIR / name, media_type="font/ttf",
+                        headers={"Cache-Control": "public, max-age=86400", "Access-Control-Allow-Origin": "*"})
+
+
+@app.get("/media/{token}/logo.png")
+def media_logo(token: str):
+    """Vendor logo as PNG, used by Shotstack when it builds the finished videos."""
+    from PIL import Image
+    p, v, r = _share(token)
+    if not v.get("logo"):
+        raise HTTPException(404)
+    src = store.local(p["id"], f"logos/{v['logo']}")
+    if not src.exists():
+        raise HTTPException(404)
+    im = Image.open(src).convert("RGBA")
+    bbox = im.getbbox()
+    if bbox:
+        im = im.crop(bbox)
+    im.thumbnail((1200, 1200))
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    return Response(buf.getvalue(), media_type="image/png", headers={"Cache-Control": "public, max-age=600"})
+
+
+@app.get("/media/{token}/{slug}.mp4")
+def media_finished(token: str, slug: str):
+    p, v, r = _share(token)
+    ra = fin.RATIO_OF.get(slug)
+    if not ra or (r.get("finish") or {}).get(ra, {}).get("status") != "done":
+        raise HTTPException(404)
+    f = store.local(p["id"], f"out/{v['id']}_{slug}.mp4")
+    if not f.exists():
+        raise HTTPException(404)
+    safe = "".join(c if c.isalnum() else "_" for c in v["name"])
+    return FileResponse(f, media_type="video/mp4",
+                        headers={"Content-Disposition": f'inline; filename="{safe}_{slug}.mp4"'})
 
 
 @app.get("/media/{token}.{ext}")
@@ -464,10 +657,19 @@ def share_page(token: str, request: Request):
     tpl = (STATIC / "share.html").read_text()
     ready = r.get("status") == "done"
     b = base_url(request)
+    done = [ra for ra in ("16:9", "1:1", "9:16") if (r.get("finish") or {}).get(ra, {}).get("status") == "done"]
+    main = f"{b}/media/{token}/{fin.SLUG[done[0]]}.mp4" if done else f"{b}/media/{token}.mp4"
+    labels = {"16:9": "Landscape 16:9", "9:16": "Vertical 9:16", "1:1": "Square 1:1"}
+    btns = [f'<a class="btn {"primary" if i == 0 else "ghost"}" href="{b}/media/{token}/{fin.SLUG[ra]}.mp4" download>'
+            f'Download {labels[ra]}</a>' for i, ra in enumerate(done)]
+    btns.append(f'<a class="btn {"ghost" if done else "primary"}" href="{b}/media/{token}.mp4" download>'
+                f'{"Cover clip only" if done else "Download MP4"}</a>')
+    if r.get("has_gif"):
+        btns.append(f'<a class="btn ghost" href="{b}/media/{token}.gif" download>Download GIF</a>')
     return (tpl.replace("{{VENDOR}}", html.escape(v["name"]))
                .replace("{{PROJECT}}", html.escape(p["name"]))
-               .replace("{{VIDEO}}", f"{b}/media/{token}.mp4" if ready else "")
+               .replace("{{VIDEO}}", main if ready else "")
                .replace("{{POSTER}}", f"{b}/media/{token}.jpg" if ready else "")
-               .replace("{{GIF}}", f"{b}/media/{token}.gif" if ready and r.get("has_gif") else "")
+               .replace("{{DOWNLOADS}}", "\n    ".join(btns) if ready else "")
                .replace("{{READY}}", "1" if ready else "0")
                .replace("{{URL}}", f"{b}/s/{token}"))

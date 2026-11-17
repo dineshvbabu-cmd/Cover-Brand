@@ -28,6 +28,28 @@ then gives you **one video + one share link per vendor**.
    Each vendor gets a public link `/s/<token>` with player + download.
    *Copy all links* or *Download ZIP* (all videos + `share_links.csv` with vendor, email, link).
 
+## 6. Designer finish (Shotstack)
+CoverBrand tracks the cover and prints the vendor branding itself; Shotstack then turns that clip into a
+finished, designed video from the **Corporate reveal** preset:
+
+1. **Intro** – "Prepared for" + vendor name animation, headline, vendor logo on a white card (monogram if no logo)
+2. **Cover clip** – the branded cover video with a lower-third (name + caption) and logo bug;
+   vertical/square versions use a blurred fill behind the clip
+3. **End card** – logo, name, contact details, call-to-action button, optional footer line
+4. Royalty-free music (Unminus licence: commercial use, no attribution), fades in/out
+
+Sizes: 16:9 (1920×1080), 9:16 (1080×1920), 1:1 (1080×1080). Fonts: Montserrat (OFL) bundled as CB Display/Semi/Text.
+Step 6 shows free local layout previews; *Auto-make* sends every newly rendered vendor to Shotstack.
+Finished files are stored in MongoDB, shown on the vendor's share page (with per-size downloads) and included in the ZIP.
+
+| Variable | Value |
+|---|---|
+| `SHOTSTACK_API_KEY` | Key from the Shotstack dashboard (sandbox and production keys differ) |
+| `SHOTSTACK_ENV` | `stage` (default – free sandbox, watermarked) or `v1` (production, clean output, uses credits) |
+
+Shotstack downloads the clip, logo and fonts from your app's public URLs (`/media/...`, `/assets/fonts/...`),
+so `PUBLIC_URL` must be the public Railway address. Cost: ~12 s of video per size per vendor.
+
 ## Run locally
 ```bash
 pip install -r requirements.txt     # needs ffmpeg on PATH
@@ -75,6 +97,7 @@ Without `MONGO_URL` the app falls back to plain files under `DATA_DIR` (handy fo
 - `app/main.py` – API, auth, jobs, share pages
 - `app/tracking.py` – cover tracking (SIFT homography + optical-flow fallback, keyframe anchors)
 - `app/decal.py` – builds the vendor print (logo + name + contact)
+- `app/finishing.py` – Shotstack templates (layout boxes → Shotstack JSON + local preview), submit/poll/download
 - `app/render.py` – perspective warp + lighting blend onto each frame, FFmpeg encoding, GIF output
 - `app/vendors.py` – Excel / CSV / PDF / email / text parsing, logo matching
 - `app/static/` – web UI and the public share page

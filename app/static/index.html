@@ -195,9 +195,52 @@
         <a class="btn" id="zipBtn" href="#">Download ZIP (videos + links.csv)</a>
       </div>
       <table id="rTable">
-        <thead><tr><th></th><th>Vendor</th><th>Status</th><th>Share link</th><th></th></tr></thead>
+        <thead><tr><th></th><th>Vendor</th><th>Status</th><th>Finished videos</th><th>Share link</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
+  </section>
+
+  <!-- 6 finishing -->
+  <section id="s6" class="locked">
+    <h2><span class="n">6</span>Designer finish <span class="hint" id="finEnv">Shotstack · Corporate reveal preset</span></h2>
+    <div class="body">
+      <div id="finWarn" class="muted" style="display:none;margin-bottom:12px;padding:10px 12px;border:1px solid var(--warn);border-radius:8px;background:#fff8ec"></div>
+      <div class="grid2" style="grid-template-columns:320px minmax(0,1fr)">
+        <div id="finForm">
+          <label style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><input type="checkbox" data-f="enabled"> <b>Auto-make finished videos after each render</b></label>
+          <div class="field"><label>Sizes</label>
+            <div class="row"><label><input type="checkbox" data-ratio="16:9"> 16:9 landscape</label><label><input type="checkbox" data-ratio="9:16"> 9:16 vertical</label><label><input type="checkbox" data-ratio="1:1"> 1:1 square</label></div></div>
+          <div class="field"><label>Music (royalty-free)</label><select data-f="music" id="finMusic"></select>
+            <audio id="finAudio" controls preload="none" style="width:100%;height:32px;margin-top:6px"></audio></div>
+          <div class="field"><label>Music volume <span id="fv_music_volume"></span></label><input type="range" min="0.1" max="1" step="0.05" data-f="music_volume"></div>
+          <div class="row" style="margin-bottom:12px">
+            <label class="muted">Accent <input type="color" data-f="accent"></label>
+            <label class="muted">Background <input type="color" data-f="dark"></label>
+          </div>
+          <div class="field"><label>Small heading</label><input type="text" data-f="kicker"></div>
+          <div class="field"><label>Intro headline</label><input type="text" data-f="headline"></div>
+          <div class="field"><label>Caption under the cover clip</label><input type="text" data-f="caption"></div>
+          <div class="field"><label>End-card button text</label><input type="text" data-f="cta"></div>
+          <div class="field"><label>Footer line (optional)</label><input type="text" data-f="maker" placeholder="e.g. Concept by Atlantas Covers"></div>
+        </div>
+        <div>
+          <div class="row" style="margin-bottom:8px">
+            <select id="finVendor"></select>
+            <select id="finRatio"><option value="16x9">16:9</option><option value="9x16">9:16</option><option value="1x1">1:1</option></select>
+            <span class="muted" style="font-size:12px">Layout preview (free, no animation)</span>
+          </div>
+          <div class="row" style="align-items:flex-start;gap:8px" id="finShots">
+            <figure style="margin:0;flex:1"><img class="prev-img" data-scene="intro"><figcaption class="muted" style="font-size:12px">Intro</figcaption></figure>
+            <figure style="margin:0;flex:1"><img class="prev-img" data-scene="clip"><figcaption class="muted" style="font-size:12px">Cover clip</figcaption></figure>
+            <figure style="margin:0;flex:1"><img class="prev-img" data-scene="end"><figcaption class="muted" style="font-size:12px">End card</figcaption></figure>
+          </div>
+          <div class="row" style="margin-top:14px">
+            <button class="primary" id="finRender">Make finished videos for ticked vendors</button>
+            <span class="muted" style="font-size:12px">Uses Shotstack credits: about 12 s of video per size per vendor.</span>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 </main>
@@ -239,6 +282,7 @@ function setLocked(){
   $("#s3").classList.toggle("locked", !has);
   $("#s4").classList.toggle("locked", !(tracked && P.vendors.length));
   $("#s5").classList.toggle("locked", !(tracked && P.vendors.length));
+  $("#s6").classList.toggle("locked", !(tracked && P.vendors.length));
   $("#delProj").hidden = !has;
 }
 
@@ -253,9 +297,9 @@ async function openProject(id){
   cur = k0 ? k0.frame : 0; $("#scrub").value = cur;
   quad = k0 ? k0.quad.map(p=>[...p]) : defaultQuad();
   $("#pvScrub").value = Math.floor(P.frames/2);
-  loadFrame(); renderKfs(); renderTrackState(); renderVendors(); fillStyle(); renderLinks(); setLocked(); refreshPreview();
+  loadFrame(); renderKfs(); renderTrackState(); renderVendors(); fillStyle(); fillFinish(); setLocked(); refreshPreview();
   if(P.track.status==="running") pollTrack();
-  if(Object.values(P.renders).some(r=>["queued","rendering"].includes(r.status))) pollRenders();
+  pollRenders();
 }
 
 // ---------- upload video ----------
@@ -394,7 +438,7 @@ async function saveVendors(){
 function picked(){ return [...document.querySelectorAll("#vTable tbody tr[data-id]")].filter(tr=>tr.querySelector(".pick").checked).map(tr=>tr.dataset.id); }
 
 // ---------- style + preview ----------
-function fillPvVendors(){ const s=$("#pvVendor"), keep=s.value; s.innerHTML=P.vendors.map(v=>`<option value="${v.id}">${esc(v.name)}</option>`).join(""); if(P.vendors.some(v=>v.id===keep)) s.value=keep; }
+function fillPvVendors(){ if(typeof fillFinVendors==="function" && P) fillFinVendors(); const s=$("#pvVendor"), keep=s.value; s.innerHTML=P.vendors.map(v=>`<option value="${v.id}">${esc(v.name)}</option>`).join(""); if(P.vendors.some(v=>v.id===keep)) s.value=keep; }
 function fillStyle(){
   document.querySelectorAll("#styleForm [data-k]").forEach(el=>{ const v=P.style[el.dataset.k];
     if(el.type==="checkbox") el.checked=!!v; else el.value=v; showVal(el); });
@@ -429,16 +473,64 @@ async function renderLinks(){
     <td>${x.status==="done"?`<img class="thumb" src="/api/projects/${P.id}/out/${x.vendor_id}.jpg?t=${Date.now()}">`:""}</td>
     <td><b>${esc(x.name)}</b><br><span class="muted">${esc(x.email)}</span></td>
     <td><span class="tag ${x.status}">${x.status}${x.status==="rendering"?" "+Math.round(x.progress*100)+"%":""}</span>${x.error?`<div style="color:var(--err);font-size:12px">${esc(x.error)}</div>`:""}</td>
+    <td>${finCell(x)}</td>
     <td>${x.share_url?`<a href="${x.share_url}" target="_blank">${esc(x.share_url)}</a>`:'<span class="muted">—</span>'}</td>
     <td><div class="row">${x.share_url?`<button class="small" data-copy="${esc(x.share_url)}">Copy</button>`:""}${x.video_url?`<a class="btn small" style="padding:4px 9px;font-size:12px" href="${x.video_url}" download>MP4</a>`:""}${x.gif_url?`<a class="btn small" style="padding:4px 9px;font-size:12px" href="${x.gif_url}" download>GIF</a>`:""}${x.status!=="not rendered"?`<button class="small" data-rer="${x.vendor_id}">Re-render</button>`:""}</div></td></tr>`).join("");
   document.querySelectorAll("[data-copy]").forEach(b=>b.onclick=async()=>{ await navigator.clipboard.writeText(b.dataset.copy); toast("Link copied"); });
   document.querySelectorAll("[data-rer]").forEach(b=>b.onclick=async()=>{ await api(`/api/projects/${P.id}/render`, J("POST",{vendor_ids:[b.dataset.rer]})); pollRenders(); });
   return l;
 }
-async function pollRenders(){ clearTimeout(pollT); const l=await renderLinks(); if(l && l.some(x=>["queued","rendering"].includes(x.status))) pollT=setTimeout(pollRenders,1500); }
+function finCell(x){
+  const f=x.finish||{}; const ks=Object.keys(f); if(!ks.length) return '<span class="muted">—</span>';
+  return '<div class="chips">'+ks.map(r=>{ const st=f[r]; const cls=st.status==="done"?"done":(st.status==="error"?"error":"rendering");
+    const label=r+" "+(st.status==="done"?"✓":st.status==="error"?"✕":"…");
+    return st.url?`<a class="tag ${cls}" href="${st.url}" target="_blank" style="text-decoration:none">${label}</a>`:`<span class="tag ${cls}" title="${esc(st.error||st.status)}">${label}</span>`; }).join("")+'</div>';
+}
+const BUSY=["queued","rendering","submitted"];
+async function pollRenders(){ clearTimeout(pollT); const l=await renderLinks();
+  if(l && l.some(x=>BUSY.includes(x.status) || Object.values(x.finish||{}).some(f=>BUSY.includes(f.status)))) pollT=setTimeout(pollRenders,2500); }
+
+// ---------- designer finish ----------
+let FIN=null;
+async function loadFinOpts(){ FIN = await api("/api/finishing/options");
+  $("#finMusic").innerHTML = Object.entries(FIN.music).map(([k,v])=>`<option value="${k}">${esc(v.label)}</option>`).join("");
+  $("#finEnv").textContent = FIN.configured ? `Shotstack ${FIN.env} · Corporate reveal preset` : "Shotstack · not connected";
+  const w=$("#finWarn");
+  if(!FIN.configured){ w.style.display="block"; w.innerHTML="Designer finishing is off: add <b>SHOTSTACK_API_KEY</b> in Railway → Cover-Brand → Variables. You can still set up and preview the template here."; }
+  else if(FIN.env.startsWith("sandbox")){ w.style.display="block"; w.innerHTML="Using the Shotstack <b>sandbox</b>: renders are free but carry a Shotstack watermark. Set <b>SHOTSTACK_ENV=v1</b> with a production key for clean videos."; }
+  else w.style.display="none";
+}
+function fillFinish(){
+  const f=P.finish||{};
+  document.querySelectorAll("#finForm [data-f]").forEach(el=>{ const v=f[el.dataset.f]; if(el.type==="checkbox") el.checked=!!v; else el.value=v??""; });
+  document.querySelectorAll("#finForm [data-ratio]").forEach(el=>el.checked=(f.ratios||[]).includes(el.dataset.ratio));
+  $("#fv_music_volume").textContent=Math.round((f.music_volume||0)*100)+"%";
+  setAudio(); fillFinVendors(); refreshFinPreview();
+}
+function setAudio(){ const m=FIN&&FIN.music[$("#finMusic").value]; const a=$("#finAudio"); if(m&&m.url){ a.src=m.url; a.style.display="block"; } else { a.removeAttribute("src"); a.style.display="none"; } }
+function fillFinVendors(){ const s=$("#finVendor"), keep=s.value; s.innerHTML=P.vendors.map(v=>`<option value="${v.id}">${esc(v.name)}</option>`).join(""); if(P.vendors.some(v=>v.id===keep)) s.value=keep; }
+let finT=null;
+document.querySelectorAll("#finForm [data-f], #finForm [data-ratio]").forEach(el=>el.addEventListener("input",()=>{
+  if(el.dataset.f==="music") setAudio();
+  if(el.dataset.f==="music_volume") $("#fv_music_volume").textContent=Math.round(el.value*100)+"%";
+  clearTimeout(finT); finT=setTimeout(saveFinish,450); }));
+async function saveFinish(){
+  const body={}; document.querySelectorAll("#finForm [data-f]").forEach(el=>body[el.dataset.f]= el.type==="checkbox"?el.checked:(el.type==="range"?+el.value:el.value));
+  body.ratios=[...document.querySelectorAll("#finForm [data-ratio]")].filter(x=>x.checked).map(x=>x.dataset.ratio);
+  P.finish = await api(`/api/projects/${P.id}/finish`, J("PUT", body)); refreshFinPreview();
+}
+function refreshFinPreview(){
+  if(!P||!P.vendors.length||!P.cover.keyframes.length) return;
+  const vid=$("#finVendor").value||P.vendors[0].id, r=$("#finRatio").value, t=Date.now();
+  document.querySelectorAll("#finShots img").forEach(im=>im.src=`/api/projects/${P.id}/finish/preview/${vid}/${r}.jpg?scene=${im.dataset.scene}&t=${t}`);
+}
+$("#finVendor").onchange=refreshFinPreview; $("#finRatio").onchange=refreshFinPreview;
+$("#finRender").onclick=async()=>{ const ids=picked(); if(!ids.length){ toast("Tick at least one vendor in step 3"); return; }
+  try{ const r=await api(`/api/projects/${P.id}/finish/render`, J("POST",{vendor_ids:ids})); toast(`Sent ${r.queued} video(s) to Shotstack${r.skipped?` · ${r.skipped} vendor(s) skipped (render their cover clip first)`:""}`); pollRenders(); $("#s5").scrollIntoView({behavior:"smooth"}); }
+  catch(e){ toast(e.message, 4000); } };
 
 // ---------- boot ----------
-(async()=>{ await loadProjects(); let last=null; try{ last=localStorage.getItem("cb_last") }catch(e){}
+(async()=>{ await loadFinOpts(); await loadProjects(); let last=null; try{ last=localStorage.getItem("cb_last") }catch(e){}
   if(last && [...$("#projSel").options].some(o=>o.value===last)){ $("#projSel").value=last; openProject(last); } })();
 </script>
 </body>

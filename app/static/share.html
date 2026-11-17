@@ -8,6 +8,7 @@
 <meta property="og:title" content="{{VENDOR}} · Container cover concept">
 <meta property="og:image" content="{{POSTER}}">
 <meta property="og:video" content="{{VIDEO}}">
+<meta property="og:description" content="Container cover concept prepared for {{VENDOR}}">
 <style>
   :root{--ink:#0d1b2a;--steel:#415a77;--paper:#f4f1ea;--accent:#e4572e}
   *{box-sizing:border-box}
@@ -18,7 +19,7 @@
   p{color:var(--steel);margin:0}
   main{max-width:960px;margin:auto;padding:16px 20px 40px}
   .frame{background:var(--ink);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(13,27,42,.25)}
-  video{display:block;width:100%;height:auto;background:#000}
+  video{display:block;width:100%;height:auto;max-height:78vh;background:#000;margin:auto}
   .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
   a.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px}
   .primary{background:var(--accent);color:#fff}
@@ -38,8 +39,7 @@
     <video id="v" controls playsinline loop autoplay muted poster="{{POSTER}}" src="{{VIDEO}}"></video>
   </div>
   <div class="actions" id="actions">
-    <a class="btn primary" href="{{VIDEO}}" download>Download MP4</a>
-    <a class="btn ghost" id="gif" href="{{GIF}}" download>Download GIF</a>
+    {{DOWNLOADS}}
   </div>
 </main>
 <footer>This is a concept visual for discussion only.</footer>
@@ -48,7 +48,6 @@
     document.getElementById("frame").innerHTML = '<div class="wait">Your video is still being prepared. Please refresh in a minute.</div>';
     document.getElementById("actions").style.display = "none";
   }
-  if (!"{{GIF}}") document.getElementById("gif").remove();
 </script>
 </body>
 </html>
