@@ -13,7 +13,10 @@ from pathlib import Path
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
+import threading
+
 from . import finishing as fin
+from . import localfinish
 from . import render, store, tracking, vendors as vparse
 from .decal import DEFAULT_STYLE
 
@@ -22,6 +25,7 @@ PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")
 STATIC = Path(__file__).parent / "static"
 pool = ThreadPoolExecutor(max_workers=int(os.environ.get("RENDER_WORKERS", "2")))
 finish_pool = ThreadPoolExecutor(max_workers=6)  # mostly waiting on Shotstack
+local_sem = threading.Semaphore(int(os.environ.get("RENDER_WORKERS", "2")))  # CPU-bound built-in renders
 app = FastAPI(title="CoverBrand")
 
 
@@ -218,6 +222,41 @@ def set_cover(pid: str, body: dict = Body(...)):
     return store.update(pid, fn)
 
 
+TRACK_V = 2  # colour tracking that folds the print with the curtain
+
+
+def _iou(a, b):
+    import cv2
+    import numpy as np
+    a, b = np.float32(a), np.float32(b)
+    inter, _ = cv2.intersectConvexConvex(a, b)
+    union = cv2.contourArea(a) + cv2.contourArea(b) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def ensure_tracks(pid):
+    """Re-track projects saved with an older method so renders always use the current one."""
+    with store.lock(f"ensure:{pid}"):
+        p = store.load(pid)
+        t = store.load_tracks(pid) or {}
+        kfs = sorted(p["cover"].get("keyframes", []), key=lambda k: k["frame"])
+        if not kfs:
+            return
+        src = str(store.local(pid, "source.mp4"))
+        mode = p["cover"].get("mode")
+        if mode != "colour":
+            q = tracking.find_cover(render.read_frame(store.local(pid, "source.mp4"), kfs[0]["frame"]))
+            if not q or _iou(q, kfs[0]["quad"]) < 0.4:
+                return  # genuinely a plain cover: keep texture tracking
+            kfs = [{"frame": kfs[0]["frame"], "quad": q}]
+            store.update(pid, lambda x: x["cover"].update(mode="colour", keyframes=kfs))
+        elif t.get("v", 1) >= TRACK_V and t.get("cs"):
+            return
+        quads, conf, vis, cs = tracking.track_colour(src, p["width"], p["frames"], kfs)
+        store.save_tracks(pid, {"quads": quads, "conf": conf, "vis": vis, "cs": cs, "v": TRACK_V})
+        store.update(pid, lambda x: x.update(track={"status": "done", "progress": 1, "error": ""}))
+
+
 def _run_track(pid):
     try:
         p = store.load(pid)
@@ -227,7 +266,7 @@ def _run_track(pid):
         src = str(store.local(pid, "source.mp4"))
         if p["cover"]["mode"] == "colour":
             quads, conf, vis, cs = tracking.track_colour(src, p["width"], p["frames"], p["cover"]["keyframes"], prog)
-            store.save_tracks(pid, {"quads": quads, "conf": conf, "vis": vis, "cs": cs})
+            store.save_tracks(pid, {"quads": quads, "conf": conf, "vis": vis, "cs": cs, "v": TRACK_V})
         else:
             quads, conf = tracking.track(src, p["width"], p["frames"], p["cover"]["mode"], p["cover"]["keyframes"], prog)
             store.save_tracks(pid, {"quads": quads, "conf": conf})
@@ -414,6 +453,8 @@ def _run_render(pid, vid):
     def setr(**kw):
         store.update(pid, lambda q: q["renders"].setdefault(vid, {}).update(kw))
     try:
+        setr(status="rendering", progress=0)
+        ensure_tracks(pid)
         p = store.load(pid)
         v = find_vendor(p, vid)
         t = store.load_tracks(pid)
@@ -520,7 +561,7 @@ def out_thumb(pid: str, vid: str):
 # ---------- designer finishing (Shotstack) ----------
 @app.get("/api/finishing/options")
 def finishing_options():
-    return {"configured": fin.configured(), "env": fin.env_label(), "presets": fin.PRESETS,
+    return {"configured": fin.configured(), "env": fin.env_label(), "engine": fin.engine(), "presets": fin.PRESETS,
             "music": {k: {"label": v[0], "url": v[1]} for k, v in fin.MUSIC.items()}, "ratios": list(fin.SIZES), "defaults": fin.DEFAULT_FINISH}
 
 
@@ -594,6 +635,21 @@ def _run_finish(pid, vid, ratios):
         tok = r["token"]
         urls = {"video": f"{b}/media/{tok}.mp4", "fonts": f"{b}/assets/fonts/",
                 "logo": f"{b}/media/{tok}/logo.png" if v.get("logo") else None}
+        if fin.engine() == "local":
+            clip = store.local(pid, f"out/{vid}.mp4")
+            logo = store.local(pid, f"logos/{v['logo']}") if v.get("logo") else None
+            for ra in ratios:
+                with local_sem:
+                    try:
+                        setf(ra, status="rendering", error="")
+                        dest = store.pdir(pid) / "out" / f"{vid}_{fin.SLUG[ra]}.mp4"
+                        localfinish.render(p, v, ra, clip, logo, dest, clip_has_audio=p.get("has_audio", True))
+                        store.put_file(pid, f"out/{vid}_{fin.SLUG[ra]}.mp4", dest)
+                        setf(ra, status="done", error="")
+                    except Exception as e:
+                        traceback.print_exc()
+                        setf(ra, status="error", error=str(e))
+            return
         ids = {}
         for ra in ratios:
             st = (r.get("finish") or {}).get(ra, {})
@@ -627,8 +683,6 @@ def _run_finish(pid, vid, ratios):
 
 @app.post("/api/projects/{pid}/finish/render")
 def start_finish(pid: str, request: Request, body: dict = Body(default={})):
-    if not fin.configured():
-        raise HTTPException(400, "Add SHOTSTACK_API_KEY in Railway to enable designer finishing")
     p = get_project(pid)
     store.update(pid, lambda q: q.update(base_url=base_url(request)))
     f = {**fin.DEFAULT_FINISH, **(p.get("finish") or {})}

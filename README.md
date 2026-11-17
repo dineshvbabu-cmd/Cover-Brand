@@ -21,7 +21,16 @@ to the cover colour it gets a white badge (*Customise the look → logo badge*).
 *Customise the look (optional)* holds the print style (font, colours, plate, realism) and the video design
 (texts, colours, music, sizes, free layout previews).
 
-## Video design (Shotstack)
+## Video design
+By default the finished videos are rendered by CoverBrand itself (`app/localfinish.py`): same template,
+animated per frame, music mixed with FFmpeg — **free and without watermark**, about a minute per size.
+Shotstack is used only with a production key (`SHOTSTACK_ENV=v1`) or `FINISH_ENGINE=shotstack`;
+the Shotstack sandbox adds a watermark, so it is not used automatically.
+
+Projects saved with an older cover method are re-checked automatically before rendering
+(coloured covers switch to colour mode so the print folds with the curtain).
+
+### Shotstack (optional)
 CoverBrand tracks the cover and prints the vendor branding itself; Shotstack then turns that clip into a
 finished, designed video from the **Corporate reveal** preset:
 
@@ -90,6 +99,7 @@ Without `MONGO_URL` the app falls back to plain files under `DATA_DIR` (handy fo
 - `app/main.py` – API, auth, jobs, share pages
 - `app/tracking.py` – cover tracking (SIFT homography + optical-flow fallback, keyframe anchors)
 - `app/decal.py` – builds the vendor print (logo + name + contact)
+- `app/localfinish.py` – built-in renderer for the designed videos (no watermark)
 - `app/finishing.py` – Shotstack templates (layout boxes → Shotstack JSON + local preview), submit/poll/download
 - `app/render.py` – perspective warp + lighting blend onto each frame, FFmpeg encoding, GIF output
 - `app/vendors.py` – Excel / CSV / PDF / email / text parsing, logo matching

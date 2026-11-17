@@ -181,7 +181,7 @@
 
   <!-- 5 render -->
   <section id="s5" class="locked">
-    <h2><span class="n">4</span>Make &amp; share <span class="hint" id="makeHint">Name printed on the cover, then designed in 16:9, 9:16 and 1:1</span></h2>
+    <h2><span class="n">4</span>Make &amp; share <span class="hint" id="makeHint">Name printed on the cover, then designed in 16:9, 9:16 and 1:1 · free, no watermark</span></h2>
     <div class="body">
       <div class="row" style="margin-bottom:12px">
         <button class="primary" id="renderSel" style="padding:10px 18px">Make videos for ticked vendors</button>
@@ -269,7 +269,7 @@
           </div>
           <div class="row" style="margin-top:14px">
             <button class="primary" id="finRender">Make finished videos for ticked vendors</button>
-            <span class="muted" style="font-size:12px">Uses Shotstack credits: about 12 s of video per size per vendor.</span>
+            <span class="muted" style="font-size:12px">About a minute per size per vendor.</span>
           </div>
         </div>
       </div>
@@ -587,10 +587,10 @@ async function pollRenders(){ clearTimeout(pollT); const l=await renderLinks();
 let FIN=null;
 async function loadFinOpts(){ FIN = await api("/api/finishing/options");
   $("#finMusic").innerHTML = Object.entries(FIN.music).map(([k,v])=>`<option value="${k}">${esc(v.label)}</option>`).join("");
-  $("#finEnv").textContent = FIN.configured ? `Shotstack ${FIN.env} · Corporate reveal preset` : "Shotstack · not connected";
+  $("#finEnv").textContent = `${FIN.env} · Corporate reveal`;
   const w=$("#finWarn");
   if(!FIN.configured){ w.style.display="block"; w.innerHTML="Designer finishing is off: add <b>SHOTSTACK_API_KEY</b> in Railway → Cover-Brand → Variables. You can still set up and preview the template here."; }
-  else if(FIN.env.startsWith("sandbox")){ w.style.display="block"; w.innerHTML="Using the Shotstack <b>sandbox</b>: renders are free but carry a Shotstack watermark. Set <b>SHOTSTACK_ENV=v1</b> with a production key for clean videos."; }
+  else if(FIN.engine==="shotstack" && FIN.env.includes("sandbox")){ w.style.display="block"; w.innerHTML="Using the Shotstack <b>sandbox</b>: renders are free but carry a Shotstack watermark. Set <b>SHOTSTACK_ENV=v1</b> with a production key for clean videos."; }
   else w.style.display="none";
 }
 function fillFinish(){

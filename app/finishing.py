@@ -54,12 +54,23 @@ API_ENV = os.environ.get("SHOTSTACK_ENV", "stage").strip() or "stage"   # stage 
 API_BASE = os.environ.get("SHOTSTACK_API_BASE") or f"https://api.shotstack.io/edit/{API_ENV}"
 
 
+def engine() -> str:
+    """'shotstack' only with a production key (SHOTSTACK_ENV=v1); otherwise the free built-in
+    renderer, which has no watermark. FINISH_ENGINE=shotstack|local overrides."""
+    forced = os.environ.get("FINISH_ENGINE", "").strip().lower()
+    if forced in ("shotstack", "local"):
+        return forced if (forced == "local" or API_KEY) else "local"
+    return "shotstack" if (API_KEY and API_ENV == "v1") else "local"
+
+
 def configured() -> bool:
-    return bool(API_KEY)
+    return True   # the built-in renderer is always available
 
 
 def env_label() -> str:
-    return "production" if API_ENV == "v1" else "sandbox (watermarked test renders)"
+    if engine() == "local":
+        return "built-in renderer (free, no watermark)"
+    return "Shotstack production" if API_ENV == "v1" else "Shotstack sandbox (watermarked)"
 
 
 # ------------------------------------------------------------------ text measuring
