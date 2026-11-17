@@ -70,8 +70,8 @@
 <body>
 <header>
   <div class="logo">COVER<span>BRAND</span></div>
-  <select id="projSel"><option value="">— choose a project —</option></select>
-  <button class="small" id="newProj" style="background:transparent;color:#fff;border-color:#fff">+ New concept video</button>
+  <select id="projSel"><option value="">Open a saved project…</option></select>
+  <button class="small" id="newProj" style="background:transparent;color:#fff;border-color:#fff">+ New video</button>
   <div class="sp"></div>
   <button class="small" id="delProj" style="background:transparent;color:#fff;border-color:#778da9" hidden>Delete project</button>
 </header>
@@ -79,7 +79,7 @@
 <main>
   <!-- 1 upload -->
   <section id="s1">
-    <h2><span class="n">1</span>Concept video or GIF from the maker <span class="hint">MP4, MOV, WEBM or GIF · up to 2 min</span></h2>
+    <h2><span class="n">1</span>Upload the video <span class="hint">MP4, MOV, WEBM or GIF from the maker · up to 2 min</span></h2>
     <div class="body">
       <div class="drop" id="videoDrop"><b>Drop the container cover video / GIF here</b><br>or click to choose a file</div>
       <input type="file" id="videoFile" accept="video/*,.gif" hidden>
@@ -89,7 +89,7 @@
 
   <!-- 2 cover -->
   <section id="s2" class="locked">
-    <h2><span class="n">2</span>Mark the cover <span class="hint">Drag the 4 orange corners onto the cover panel where the name should print</span></h2>
+    <h2><span class="n">2</span>Mark the cover <span class="hint">Shows the app where to print the vendor name</span></h2>
     <div class="body grid2">
       <div>
         <div class="stage"><canvas id="cv"></canvas></div>
@@ -102,32 +102,44 @@
         <div class="legend" style="margin-top:6px"><b style="background:var(--accent)"></b>corners you set <b style="background:#3ddc97"></b>tracked cover <b style="background:#ffd166"></b>low tracking confidence</div>
       </div>
       <div>
-        <div class="field">
-          <label>How does the cover move?</label>
-          <select id="mode">
-            <option value="auto">It moves / camera moves — auto-track it</option>
-            <option value="manual">Moves — I'll set corners at a few frames</option>
-            <option value="static">Doesn't move — same spot every frame</option>
-          </select>
-        </div>
-        <div class="row" style="margin-bottom:10px">
-          <button class="dark" id="setKf">Save corners at this frame</button>
-          <button class="small" id="resetQuad">Reset box</button>
-        </div>
-        <div class="field">
-          <label>Saved corner frames (click to jump)</label>
-          <div class="chips" id="kfList"><span class="muted">None yet</span></div>
-        </div>
-        <p class="muted" style="font-size:12px;margin:0 0 12px">Tip: for auto-track, one frame where the cover is clearly visible is usually enough. If the print slips, add another saved frame where it went wrong and track again.</p>
-        <button class="primary" id="trackBtn">Track cover</button>
+        <ol class="muted" style="padding-left:18px;margin:0 0 14px;line-height:1.7">
+          <li>Use the slider to find a frame where the cover is clearly visible.</li>
+          <li>Drag the <b style="color:var(--accent)">4 orange dots</b> onto the corners of the area where the name should print.</li>
+          <li>Click <b>Save cover position</b>. The app follows the cover through the whole video.</li>
+        </ol>
+        <button class="primary" id="saveCover" style="width:100%;justify-content:center;padding:11px">Save cover position</button>
         <div class="row" style="margin-top:10px"><div class="bar" style="flex:1"><div id="trackBar"></div></div><span id="trackStatus" class="muted"></span></div>
+        <p class="muted" style="font-size:12px;margin:10px 0 0">When it says <b>Ready</b>, move the slider: the green box should stay on the cover.</p>
+        <details style="margin-top:14px">
+          <summary class="muted" style="cursor:pointer">More options (if the print slips)</summary>
+          <div style="margin-top:10px">
+            <div class="field">
+              <label>How does the cover move?</label>
+              <select id="mode">
+                <option value="auto">It moves / camera moves — follow it automatically</option>
+                <option value="manual">Moves — I'll set corners at a few frames</option>
+                <option value="static">Doesn't move — same spot every frame</option>
+              </select>
+            </div>
+            <div class="row" style="margin-bottom:10px">
+              <button class="small" id="setKf">Add corners at this frame too</button>
+              <button class="small" id="resetQuad">Reset box</button>
+              <button class="small" id="trackBtn">Follow cover again</button>
+            </div>
+            <div class="field">
+              <label>Frames with saved corners (click to jump)</label>
+              <div class="chips" id="kfList"><span class="muted">None yet</span></div>
+            </div>
+            <p class="muted" style="font-size:12px;margin:0">If the print slips at some point, go to that frame, fix the dots, click <i>Add corners at this frame too</i>, then <i>Follow cover again</i>.</p>
+          </div>
+        </details>
       </div>
     </div>
   </section>
 
   <!-- 3 vendors -->
   <section id="s3" class="locked">
-    <h2><span class="n">3</span>Vendors <span class="hint">Excel, CSV, PDF, Outlook .msg / .eml emails, logo images — or paste a list</span></h2>
+    <h2><span class="n">3</span>Add vendors <span class="hint">Excel, CSV, PDF, Outlook emails (.msg/.eml), logo images — or paste a list</span></h2>
     <div class="body">
       <div class="grid2" style="grid-template-columns:1fr 1fr">
         <div>
@@ -150,9 +162,28 @@
     </div>
   </section>
 
+  <!-- 5 render -->
+  <section id="s5" class="locked">
+    <h2><span class="n">4</span>Make &amp; share <span class="hint" id="makeHint">Name printed on the cover, then designed in 16:9, 9:16 and 1:1</span></h2>
+    <div class="body">
+      <div class="row" style="margin-bottom:12px">
+        <button class="primary" id="renderSel" style="padding:10px 18px">Make videos for ticked vendors</button>
+        <a class="btn" id="zipBtn" href="#">Download all (ZIP)</a>
+        <button id="copyAll">Copy all links</button>
+      </div>
+      <table id="rTable">
+        <thead><tr><th></th><th>Vendor</th><th>Progress</th><th>Send</th><th>Download</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <details id="advanced" style="margin-bottom:18px">
+    <summary style="cursor:pointer;font-weight:700;padding:12px 4px">⚙ Customise the look (optional): print style, texts, colours, music</summary>
+    <div style="margin-top:10px">
   <!-- 4 style -->
   <section id="s4" class="locked">
-    <h2><span class="n">4</span>How the print looks <span class="hint">Preview on any frame before rendering</span></h2>
+    <h2><span class="n">A</span>Name on the cover <span class="hint">Font, colours and layout of the print</span></h2>
     <div class="body grid2" style="grid-template-columns:300px minmax(0,1fr)">
       <div id="styleForm">
         <div class="field"><label>Preview vendor</label><select id="pvVendor"></select></div>
@@ -185,25 +216,9 @@
     </div>
   </section>
 
-  <!-- 5 render -->
-  <section id="s5" class="locked">
-    <h2><span class="n">5</span>Render &amp; share <span class="hint">One video and one share link per vendor</span></h2>
-    <div class="body">
-      <div class="row" style="margin-bottom:12px">
-        <button class="primary" id="renderSel">Render ticked vendors</button>
-        <button id="copyAll">Copy all links</button>
-        <a class="btn" id="zipBtn" href="#">Download ZIP (videos + links.csv)</a>
-      </div>
-      <table id="rTable">
-        <thead><tr><th></th><th>Vendor</th><th>Status</th><th>Finished videos</th><th>Share link</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-
   <!-- 6 finishing -->
   <section id="s6" class="locked">
-    <h2><span class="n">6</span>Designer finish <span class="hint" id="finEnv">Shotstack · Corporate reveal preset</span></h2>
+    <h2><span class="n">B</span>Video design <span class="hint" id="finEnv">Shotstack · Corporate reveal</span></h2>
     <div class="body">
       <div id="finWarn" class="muted" style="display:none;margin-bottom:12px;padding:10px 12px;border:1px solid var(--warn);border-radius:8px;background:#fff8ec"></div>
       <div class="grid2" style="grid-template-columns:320px minmax(0,1fr)">
@@ -243,6 +258,8 @@
       </div>
     </div>
   </section>
+    </div>
+  </details>
 </main>
 <div class="toast" id="toast"></div>
 
@@ -266,7 +283,7 @@ const J = (method, body) => ({method, headers:{"Content-Type":"application/json"
 // ---------- projects ----------
 async function loadProjects(sel){
   const list = await api("/api/projects");
-  const s = $("#projSel"); s.innerHTML = '<option value="">— choose a project —</option>' +
+  const s = $("#projSel"); s.innerHTML = '<option value="">Open a saved project…</option>' +
     list.map(p=>`<option value="${p.id}">${esc(p.name)} · ${p.vendors} vendors</option>`).join("");
   if(sel) s.value = sel;
 }
@@ -379,19 +396,24 @@ function renderKfs(){
     const d=ev.target.dataset.del; if(d!==undefined){ P.cover.keyframes=P.cover.keyframes.filter(k=>k.frame!=d); await saveCover(); return; }
     goFrame(+c.dataset.f); });
 }
+$("#saveCover").onclick = async () => {
+  if($("#mode").value!=="manual") P.cover.keyframes = P.cover.keyframes.filter(k=>k.frame===cur);
+  P.cover.keyframes = P.cover.keyframes.filter(k=>k.frame!==cur).concat([{frame:cur, quad:quad.map(p=>p.map(v=>Math.round(v*10)/10))}]).sort((a,b)=>a.frame-b.frame);
+  await saveCover(); $("#trackBtn").click();
+};
 $("#trackBtn").onclick = async () => {
-  if(!P.cover.keyframes.length){ toast("First drag the corners onto the cover and click “Save corners at this frame”"); return; }
+  if(!P.cover.keyframes.length){ toast("Drag the dots onto the cover, then click Save cover position"); return; }
   try{ await api(`/api/projects/${P.id}/track`, {method:"POST"}); P.track.status="running"; renderTrackState(); pollTrack(); }catch(e){ toast(e.message) }
 };
 function renderTrackState(){
   const t=P.track; $("#trackBar").style.width = (t.status==="done"?100:(t.progress||0)*100)+"%";
-  $("#trackStatus").textContent = {none:"Not tracked", stale:"Corners changed — track again", running:"Tracking…", error:"Error: "+t.error,
-    done: t.low_confidence_frames ? `Done · ${t.low_confidence_frames} shaky frames (yellow)` : "Done ✓"}[t.status]||"";
+  $("#trackStatus").textContent = {none:"Not saved yet", stale:"Corners changed — click Save cover position", running:"Following the cover…", error:"Error: "+t.error,
+    done: t.low_confidence_frames ? `Ready · check ${t.low_confidence_frames} shaky frames (yellow)` : "Ready ✓"}[t.status]||"";
 }
 async function pollTrack(){
   const p = await api(`/api/projects/${P.id}`); P.track=p.track; renderTrackState();
   if(p.track.status==="running") return setTimeout(pollTrack, 900);
-  if(p.track.status==="done"){ tracks = await api(`/api/projects/${P.id}/tracks`); P=p; draw(); setLocked(); refreshPreview(); toast("Cover tracked — scrub the slider to check the green box follows the cover"); }
+  if(p.track.status==="done"){ tracks = await api(`/api/projects/${P.id}/tracks`); P=p; draw(); setLocked(); refreshPreview(); toast("Cover saved — move the slider to check, then add vendors"); }
 }
 
 // ---------- vendors ----------
@@ -406,7 +428,7 @@ async function importVendors(files, text){
   const fd=new FormData(); [...files].forEach(f=>fd.append("files",f)); fd.append("text",text);
   $("#importMsg").textContent="Reading…";
   try{ const r=await api(`/api/projects/${P.id}/vendors/import`,{method:"POST",body:fd});
-    P.vendors=r.vendors; renderVendors(); setLocked(); renderLinks(); fillPvVendors();
+    P.vendors=r.vendors; renderVendors(); setLocked(); renderLinks(); fillPvVendors(); loadProjects(P.id);
     $("#importMsg").innerHTML = `Added <b>${r.added}</b> vendor(s)${r.logos_matched?`, matched <b>${r.logos_matched}</b> logo(s)`:""}. Check the names below — click any cell to edit.` + (r.errors.length?`<br><span style="color:var(--err)">${r.errors.map(esc).join("<br>")}</span>`:"");
   }catch(e){ $("#importMsg").textContent="Error: "+e.message; }
 }
@@ -463,22 +485,41 @@ function refreshPreview(){
 
 // ---------- render + links ----------
 $("#renderSel").onclick=async()=>{ const ids=picked(); if(!ids.length){ toast("Tick at least one vendor in step 3"); return; }
-  try{ const r=await api(`/api/projects/${P.id}/render`, J("POST",{vendor_ids:ids})); toast(`Rendering ${r.queued} video(s)…`); pollRenders(); }catch(e){ toast(e.message); } };
+  try{ if(FIN && FIN.configured && !(P.finish||{}).enabled){ P.finish = await api(`/api/projects/${P.id}/finish`, J("PUT",{enabled:true})); fillFinish(); } const r=await api(`/api/projects/${P.id}/render`, J("POST",{vendor_ids:ids})); toast(`Rendering ${r.queued} video(s)…`); pollRenders(); }catch(e){ toast(e.message); } };
 $("#zipBtn").onclick=e=>{ e.preventDefault(); if(P) location.href=`/api/projects/${P.id}/zip`; };
 $("#copyAll").onclick=async()=>{ const l=await api(`/api/projects/${P.id}/links`); const txt=l.filter(x=>x.share_url&&x.status==="done").map(x=>`${x.name}: ${x.share_url}`).join("\n");
   if(!txt){ toast("No finished videos yet"); return; } await navigator.clipboard.writeText(txt); toast("Links copied"); };
 async function renderLinks(){
   if(!P) return; const l=await api(`/api/projects/${P.id}/links`);
-  $("#rTable tbody").innerHTML = l.map(x=>`<tr>
-    <td>${x.status==="done"?`<img class="thumb" src="/api/projects/${P.id}/out/${x.vendor_id}.jpg?t=${Date.now()}">`:""}</td>
-    <td><b>${esc(x.name)}</b><br><span class="muted">${esc(x.email)}</span></td>
-    <td><span class="tag ${x.status}">${x.status}${x.status==="rendering"?" "+Math.round(x.progress*100)+"%":""}</span>${x.error?`<div style="color:var(--err);font-size:12px">${esc(x.error)}</div>`:""}</td>
-    <td>${finCell(x)}</td>
-    <td>${x.share_url?`<a href="${x.share_url}" target="_blank">${esc(x.share_url)}</a>`:'<span class="muted">—</span>'}</td>
-    <td><div class="row">${x.share_url?`<button class="small" data-copy="${esc(x.share_url)}">Copy</button>`:""}${x.video_url?`<a class="btn small" style="padding:4px 9px;font-size:12px" href="${x.video_url}" download>MP4</a>`:""}${x.gif_url?`<a class="btn small" style="padding:4px 9px;font-size:12px" href="${x.gif_url}" download>GIF</a>`:""}${x.status!=="not rendered"?`<button class="small" data-rer="${x.vendor_id}">Re-render</button>`:""}</div></td></tr>`).join("");
+  $("#rTable tbody").innerHTML = l.length? l.map(x=>{
+    const f=x.finish||{}, fk=Object.keys(f), fdone=fk.filter(k=>f[k].status==="done"), ferr=fk.filter(k=>f[k].status==="error");
+    let prog;
+    if(x.status==="not rendered") prog='<span class="muted">Not made yet</span>';
+    else if(x.status==="error") prog=`<span class="tag error">Error</span><div style="color:var(--err);font-size:12px">${esc(x.error)}</div>`;
+    else if(x.status!=="done") prog=`<span class="tag rendering">Printing on cover ${Math.round((x.progress||0)*100)}%</span>`;
+    else if(fk.length && fdone.length+ferr.length<fk.length) prog=`<span class="tag rendering">Designing video… ${fdone.length}/${fk.length}</span>`;
+    else prog=`<span class="tag done">Ready ✓</span>`+(ferr.length?`<div style="color:var(--err);font-size:12px">${ferr.map(k=>k+": "+esc(f[k].error)).join("<br>")}</div>`:"");
+    const ready=x.status==="done";
+    const dl=[...fdone.map(k=>`<a class="btn small" style="padding:4px 9px;font-size:12px" href="${f[k].url}" download>${k}</a>`),
+              ready?`<a class="btn small" style="padding:4px 9px;font-size:12px" href="${x.video_url}" download>${fk.length?"Cover clip":"MP4"}</a>`:""].join("");
+    const wa=ready?`<a class="btn small" style="padding:4px 10px;font-size:12px;background:#25d366;border-color:#25d366;color:#fff" target="_blank" href="${waLink(x)}">WhatsApp</a>`:"";
+    return `<tr>
+    <td>${ready?`<img class="thumb" src="/api/projects/${P.id}/out/${x.vendor_id}.jpg?t=${Date.now()}">`:""}</td>
+    <td><b>${esc(x.name)}</b><br><span class="muted">${esc(x.phone||x.email||"")}</span></td>
+    <td>${prog}</td>
+    <td><div class="row">${wa}${x.share_url&&ready?`<button class="small" data-copy="${esc(x.share_url)}">Copy link</button><a class="small" href="${x.share_url}" target="_blank" style="font-size:12px">Open page</a>`:""}</div></td>
+    <td><div class="row">${dl}${x.status!=="not rendered"?`<button class="small" data-rer="${x.vendor_id}" title="Make this vendor's video again">↻</button>`:""}</div></td></tr>`;}).join("")
+    : '<tr><td colspan="5" class="muted" style="padding:14px">Add vendors in step 3, tick them, then click Make videos.</td></tr>';
   document.querySelectorAll("[data-copy]").forEach(b=>b.onclick=async()=>{ await navigator.clipboard.writeText(b.dataset.copy); toast("Link copied"); });
   document.querySelectorAll("[data-rer]").forEach(b=>b.onclick=async()=>{ await api(`/api/projects/${P.id}/render`, J("POST",{vendor_ids:[b.dataset.rer]})); pollRenders(); });
   return l;
+}
+function waLink(x){
+  const who=(x.contact||"").trim()||x.name;
+  const msg=`Hello ${who},\n\nWe have prepared a container cover concept video for ${x.name}. Watch and download it here:\n${x.share_url}`;
+  let ph=(x.phone||"").replace(/[^\d+]/g,"");
+  ph = (ph.startsWith("+") || ph.replace(/\D/g,"").length>=11) ? ph.replace(/\D/g,"") : "";
+  return `https://wa.me/${ph}?text=${encodeURIComponent(msg)}`;
 }
 function finCell(x){
   const f=x.finish||{}; const ks=Object.keys(f); if(!ks.length) return '<span class="muted">—</span>';

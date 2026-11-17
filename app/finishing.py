@@ -35,7 +35,7 @@ MUSIC = {
 PRESETS = {"corporate": "Corporate reveal"}
 
 DEFAULT_FINISH = {
-    "enabled": False,          # run automatically after each vendor's clip is rendered
+    "enabled": True,           # run automatically after each vendor's clip is rendered
     "preset": "corporate",
     "ratios": ["16:9", "9:16", "1:1"],
     "music": "berlin",

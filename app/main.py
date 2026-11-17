@@ -408,6 +408,7 @@ def links(pid: str, request: Request):
     for v in p["vendors"]:
         r = p["renders"].get(v["id"], {})
         out.append({"vendor_id": v["id"], "name": v["name"], "email": v["email"],
+                    "phone": v.get("phone", ""), "contact": v.get("contact", ""),
                     "status": r.get("status", "not rendered"), "progress": r.get("progress", 0),
                     "error": r.get("error", ""),
                     "share_url": f"{b}/s/{r['token']}" if r.get("token") else "",

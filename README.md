@@ -4,31 +4,21 @@ Upload the maker's concept video (or GIF) once, mark the cover panel, import you
 and the app prints each vendor's **name, logo and contact details onto the moving cover**,
 then gives you **one video + one share link per vendor**.
 
-## How it works (5 steps in the web app)
-1. **Upload** the concept MP4 / MOV / WEBM / GIF (up to 2 minutes; scaled to max 1920 px wide).
-2. **Mark the cover** – drag the 4 orange corners onto the area of the cover where the print should go,
-   click *Save corners at this frame*, then *Track cover*.
-   - *Auto-track* (default): follows the cover with feature tracking, including perspective as the lid opens/tilts.
-   - *Manual*: you save corners on several frames, the app interpolates between them.
-   - *Static*: cover doesn't move.
-   Scrub the slider: the green dashed box should sit on the cover. Yellow = shaky frames →
-   fix the corners on that frame, save, and track again (each saved frame becomes an anchor).
-3. **Vendors** – drop any mix of:
-   - Excel (.xlsx/.xls) or CSV – headers like *Vendor / Supplier / Company*, *Contact person*, *Email*,
-     *Phone / Contact No*, *Website* are detected automatically, title rows above the header are skipped
-   - PDF – tables are read; otherwise lines that contain an email/phone
-   - Outlook **.msg** or **.eml** emails – attached Excel/PDF lists are read; an email *from* a vendor becomes
-     that vendor (company from the signature or email domain, sender as contact) and its attached image is used as the logo
-   - Logo images – matched to vendors by file name (`ocean-edge.png` → *Ocean Edge Marine*)
-   - or paste lines like `Ocean Edge Marine, Ravi Kumar, ravi@oceanedge.com, +91 98400 12345`
-   Every cell is editable; click the logo box to upload/replace a logo.
-4. **Print style** – layout, font, colours, optional background plate, lighting realism, margins,
-   optional extra line (e.g. "Concept for"). Live preview on any frame.
-5. **Render & share** – renders ticked vendors (MP4, plus GIF when the source was a GIF).
-   Each vendor gets a public link `/s/<token>` with player + download.
-   *Copy all links* or *Download ZIP* (all videos + `share_links.csv` with vendor, email, link).
+## How it works (4 steps)
+1. **Upload the video** – the maker's MP4 / MOV / WEBM / GIF (up to 2 minutes).
+2. **Mark the cover** – drag the 4 orange dots onto the cover area where the name should print and click
+   **Save cover position**; the app follows the cover through the whole video (green box).
+   *More options* has manual/static modes and extra anchor frames if the print slips.
+3. **Add vendors** – drop Excel / CSV / PDF / Outlook .msg/.eml / logo images, or paste a list. Every cell is editable.
+4. **Make & share** – one click per batch: the vendor's name, logo and contact are printed on the cover, then
+   Shotstack designs the finished video (intro, captions, end card, music) in 16:9, 9:16 and 1:1.
+   Each vendor gets a **WhatsApp** button (opens WhatsApp with their number and the link pre-filled),
+   **Copy link**, the public page, and downloads for every size. *Download all (ZIP)* gets everything.
 
-## 6. Designer finish (Shotstack)
+*Customise the look (optional)* holds the print style (font, colours, plate, realism) and the video design
+(texts, colours, music, sizes, free layout previews).
+
+## Video design (Shotstack)
 CoverBrand tracks the cover and prints the vendor branding itself; Shotstack then turns that clip into a
 finished, designed video from the **Corporate reveal** preset:
 
