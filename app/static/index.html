@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<title>CoverBrand · Vendor concept videos</title>
+<style>
+  :root{
+    --ink:#0d1b2a; --steel:#415a77; --mist:#778da9; --line:#d9d4c7; --paper:#f4f1ea; --card:#fffdf8;
+    --accent:#e4572e; --ok:#2a9d8f; --warn:#e9a03b; --err:#c0392b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--paper);color:var(--ink)}
+  header{display:flex;align-items:center;gap:16px;padding:14px 24px;background:var(--ink);color:#fff;position:sticky;top:0;z-index:10}
+  header .logo{font-weight:800;letter-spacing:.04em;font-size:17px}
+  header .logo span{color:var(--accent)}
+  header select{min-width:240px}
+  header .sp{flex:1}
+  main{max-width:1180px;margin:0 auto;padding:22px 24px 80px}
+  section{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:18px;overflow:hidden}
+  section>h2{margin:0;padding:14px 18px;font-size:15px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+  section>h2 .n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px}
+  section>h2 .hint{font-weight:400;color:var(--steel);font-size:13px;margin-left:auto}
+  .body{padding:16px 18px}
+  .locked{opacity:.45;pointer-events:none}
+  button,.btn{font:inherit;border:1px solid var(--ink);background:#fff;color:var(--ink);padding:7px 13px;border-radius:7px;cursor:pointer;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+  button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.dark{background:var(--ink);color:#fff}
+  button.small{padding:4px 9px;font-size:12px}
+  button:disabled{opacity:.5;cursor:default}
+  input[type=text],input[type=email],select,textarea{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;color:var(--ink)}
+  textarea{width:100%;min-height:70px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .muted{color:var(--steel)}
+  .drop{border:2px dashed var(--mist);border-radius:10px;padding:26px;text-align:center;color:var(--steel);cursor:pointer;background:#faf8f2}
+  .drop.over{border-color:var(--accent);background:#fff3ee}
+  .drop b{color:var(--ink)}
+  .grid2{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+  .stage{position:relative;background:#111;border-radius:8px;overflow:hidden;user-select:none}
+  .stage canvas{display:block;width:100%;height:auto;cursor:crosshair}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{background:#eef1f5;border:1px solid #cfd8e3;border-radius:999px;padding:3px 6px 3px 10px;font-size:12px;display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+  .chip.cur{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .chip i{font-style:normal;opacity:.7;padding:0 4px}
+  .bar{height:6px;background:#e6e1d4;border-radius:3px;overflow:hidden;min-width:80px}
+  .bar>div{height:100%;background:var(--accent);width:0;transition:width .3s}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:6px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{font-size:12px;color:var(--steel);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  td input[type=text]{width:100%;min-width:90px;border-color:transparent;background:transparent}
+  td input[type=text]:hover,td input[type=text]:focus{border-color:var(--line);background:#fff}
+  .logo-cell{width:70px}
+  .logo-box{width:56px;height:36px;border:1px dashed var(--mist);border-radius:5px;display:grid;place-items:center;font-size:11px;color:var(--steel);cursor:pointer;background:#fff center/contain no-repeat}
+  .tag{font-size:11px;padding:2px 8px;border-radius:999px;background:#eee;white-space:nowrap}
+  .tag.done{background:#d8f0ec;color:#1d6f65}.tag.error{background:#f8dcd8;color:var(--err)}.tag.rendering,.tag.queued{background:#fdebd1;color:#8a5a12}
+  .field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+  .field label{font-size:12px;color:var(--steel);font-weight:600}
+  .field input[type=range]{width:100%}
+  .decal-prev{width:100%;border-radius:6px;border:1px solid var(--line);background:#5a626e;min-height:60px}
+  .prev-img{width:100%;border-radius:8px;display:block;background:#111;min-height:120px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:50;max-width:80vw}
+  .toast.show{opacity:1}
+  .legend{font-size:12px;color:var(--steel)}
+  .legend b{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px -1px 10px}
+  .thumb{width:84px;height:48px;object-fit:cover;border-radius:4px;background:#ddd;display:block}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">COVER<span>BRAND</span></div>
+  <select id="projSel"><option value="">— choose a project —</option></select>
+  <button class="small" id="newProj" style="background:transparent;color:#fff;border-color:#fff">+ New concept video</button>
+  <div class="sp"></div>
+  <button class="small" id="delProj" style="background:transparent;color:#fff;border-color:#778da9" hidden>Delete project</button>
+</header>
+
+<main>
+  <!-- 1 upload -->
+  <section id="s1">
+    <h2><span class="n">1</span>Concept video or GIF from the maker <span class="hint">MP4, MOV, WEBM or GIF · up to 2 min</span></h2>
+    <div class="body">
+      <div class="drop" id="videoDrop"><b>Drop the container cover video / GIF here</b><br>or click to choose a file</div>
+      <input type="file" id="videoFile" accept="video/*,.gif" hidden>
+      <div id="vidInfo" class="muted" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- 2 cover -->
+  <section id="s2" class="locked">
+    <h2><span class="n">2</span>Mark the cover <span class="hint">Drag the 4 orange corners onto the cover panel where the name should print</span></h2>
+    <div class="body grid2">
+      <div>
+        <div class="stage"><canvas id="cv"></canvas></div>
+        <div class="row" style="margin-top:10px">
+          <button class="small" id="prevF">◀</button>
+          <input type="range" id="scrub" min="0" max="0" value="0" style="flex:1">
+          <button class="small" id="nextF">▶</button>
+          <span id="fLabel" class="muted" style="min-width:110px;text-align:right"></span>
+        </div>
+        <div class="legend" style="margin-top:6px"><b style="background:var(--accent)"></b>corners you set <b style="background:#3ddc97"></b>tracked cover <b style="background:#ffd166"></b>low tracking confidence</div>
+      </div>
+      <div>
+        <div class="field">
+          <label>How does the cover move?</label>
+          <select id="mode">
+            <option value="auto">It moves / camera moves — auto-track it</option>
+            <option value="manual">Moves — I'll set corners at a few frames</option>
+            <option value="static">Doesn't move — same spot every frame</option>
+          </select>
+        </div>
+        <div class="row" style="margin-bottom:10px">
+          <button class="dark" id="setKf">Save corners at this frame</button>
+          <button class="small" id="resetQuad">Reset box</button>
+        </div>
+        <div class="field">
+          <label>Saved corner frames (click to jump)</label>
+          <div class="chips" id="kfList"><span class="muted">None yet</span></div>
+        </div>
+        <p class="muted" style="font-size:12px;margin:0 0 12px">Tip: for auto-track, one frame where the cover is clearly visible is usually enough. If the print slips, add another saved frame where it went wrong and track again.</p>
+        <button class="primary" id="trackBtn">Track cover</button>
+        <div class="row" style="margin-top:10px"><div class="bar" style="flex:1"><div id="trackBar"></div></div><span id="trackStatus" class="muted"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 vendors -->
+  <section id="s3" class="locked">
+    <h2><span class="n">3</span>Vendors <span class="hint">Excel, CSV, PDF, Outlook .msg / .eml emails, logo images — or paste a list</span></h2>
+    <div class="body">
+      <div class="grid2" style="grid-template-columns:1fr 1fr">
+        <div>
+          <div class="drop" id="vendDrop"><b>Drop vendor files here</b><br>Excel / CSV / PDF / email (.msg, .eml) / logo images<br><span style="font-size:12px">Logo images are matched to vendors by file name, e.g. <i>oceanedge.png</i></span></div>
+          <input type="file" id="vendFile" multiple hidden accept=".xlsx,.xls,.xlsm,.csv,.tsv,.txt,.pdf,.eml,.msg,image/*">
+        </div>
+        <div>
+          <textarea id="paste" placeholder="Or paste one vendor per line:&#10;Ocean Edge Marine, Ravi Kumar, ravi@oceanedge.com, +91 98400 12345, www.oceanedge.com&#10;Global Maritime Services, sales@globalmaritime.sg"></textarea>
+          <div class="row" style="margin-top:6px"><button id="pasteBtn">Add pasted vendors</button><button id="addRow">+ Add vendor by hand</button></div>
+        </div>
+      </div>
+      <div id="importMsg" class="muted" style="margin:10px 0"></div>
+      <div style="overflow-x:auto">
+        <table id="vTable">
+          <thead><tr><th><input type="checkbox" id="selAll" checked></th><th>Logo</th><th>Vendor / company</th><th>Contact person</th><th>Email</th><th>Phone</th><th>Website</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <input type="file" id="logoFile" accept="image/*" hidden>
+    </div>
+  </section>
+
+  <!-- 4 style -->
+  <section id="s4" class="locked">
+    <h2><span class="n">4</span>How the print looks <span class="hint">Preview on any frame before rendering</span></h2>
+    <div class="body grid2" style="grid-template-columns:300px minmax(0,1fr)">
+      <div id="styleForm">
+        <div class="field"><label>Preview vendor</label><select id="pvVendor"></select></div>
+        <div class="field"><label>Layout</label>
+          <select data-k="layout"><option value="auto">Auto (by cover shape)</option><option value="row">Logo left, text right</option><option value="stack">Logo on top, text below</option><option value="text">Text only</option></select></div>
+        <div class="field"><label>Font</label>
+          <select data-k="font"><option value="condensed">Condensed (stencil style)</option><option value="sans">Sans bold</option><option value="serif">Serif</option><option value="mono">Mono</option></select></div>
+        <div class="row" style="margin-bottom:12px">
+          <label class="muted">Text <input type="color" data-k="text_color"></label>
+          <label class="muted">Plate <input type="color" data-k="plate_color"></label>
+        </div>
+        <div class="field"><label>Background plate <span id="v_plate_opacity"></span></label><input type="range" min="0" max="1" step="0.05" data-k="plate_opacity"></div>
+        <div class="field"><label>Print solidity <span id="v_opacity"></span></label><input type="range" min="0.3" max="1" step="0.05" data-k="opacity"></div>
+        <div class="field"><label>Follow cover lighting <span id="v_realism"></span></label><input type="range" min="0" max="1" step="0.05" data-k="realism"></div>
+        <div class="field"><label>Margin from cover edges <span id="v_padding"></span></label><input type="range" min="0" max="0.3" step="0.01" data-k="padding"></div>
+        <div class="field"><label>Extra line on every video (optional)</label><input type="text" data-k="tagline" placeholder="e.g. Concept for"></div>
+        <label class="row muted"><input type="checkbox" data-k="uppercase"> Name in CAPITALS</label>
+        <label class="row muted"><input type="checkbox" data-k="show_logo"> Show logo</label>
+        <label class="row muted"><input type="checkbox" data-k="logo_knockout_white"> Remove white logo background</label>
+        <label class="row muted"><input type="checkbox" data-k="show_contact"> Show contact details</label>
+      </div>
+      <div>
+        <img id="pvImg" class="prev-img" alt="">
+        <div class="row" style="margin-top:8px">
+          <input type="range" id="pvScrub" min="0" max="0" value="0" style="flex:1">
+          <button class="small" id="pvRefresh">Refresh preview</button>
+        </div>
+        <div class="field" style="margin-top:12px"><label>Print artwork (flat)</label><img id="decalImg" class="decal-prev" alt=""></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 render -->
+  <section id="s5" class="locked">
+    <h2><span class="n">5</span>Render &amp; share <span class="hint">One video and one share link per vendor</span></h2>
+    <div class="body">
+      <div class="row" style="margin-bottom:12px">
+        <button class="primary" id="renderSel">Render ticked vendors</button>
+        <button id="copyAll">Copy all links</button>
+        <a class="btn" id="zipBtn" href="#">Download ZIP (videos + links.csv)</a>
+      </div>
+      <table id="rTable">
+        <thead><tr><th></th><th>Vendor</th><th>Status</th><th>Share link</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+let P = null;           // current project
+let tracks = null;      // {quads, conf}
+let cur = 0;            // current frame
+let quad = null;        // editable corners (video px)
+let img = new Image();
+let pollT = null, logoTarget = null;
+
+function toast(m, ms=2600){ const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"), ms); }
+async function api(url, opt={}){
+  const r = await fetch(url, opt);
+  if(!r.ok){ let m=r.statusText; try{ m=(await r.json()).detail||m }catch(e){} throw new Error(m); }
+  const ct=r.headers.get("content-type")||""; return ct.includes("json")? r.json(): r;
+}
+const J = (method, body) => ({method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+
+// ---------- projects ----------
+async function loadProjects(sel){
+  const list = await api("/api/projects");
+  const s = $("#projSel"); s.innerHTML = '<option value="">— choose a project —</option>' +
+    list.map(p=>`<option value="${p.id}">${esc(p.name)} · ${p.vendors} vendors</option>`).join("");
+  if(sel) s.value = sel;
+}
+function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+$("#projSel").onchange = e => e.target.value ? openProject(e.target.value) : null;
+$("#newProj").onclick = () => { P=null; setLocked(); $("#vidInfo").textContent=""; $("#projSel").value=""; window.scrollTo(0,0); $("#videoFile").click(); };
+$("#delProj").onclick = async () => { if(!P || !confirm(`Delete project "${P.name}" and all its videos?`)) return;
+  await api(`/api/projects/${P.id}`, {method:"DELETE"}); P=null; setLocked(); loadProjects(); };
+
+function setLocked(){
+  const has = !!P, cover = has && P.cover.keyframes.length, tracked = has && P.track.status==="done";
+  $("#s2").classList.toggle("locked", !has);
+  $("#s3").classList.toggle("locked", !has);
+  $("#s4").classList.toggle("locked", !(tracked && P.vendors.length));
+  $("#s5").classList.toggle("locked", !(tracked && P.vendors.length));
+  $("#delProj").hidden = !has;
+}
+
+async function openProject(id){
+  P = await api(`/api/projects/${id}`);
+  localStorage && (()=>{ try{ localStorage.setItem("cb_last", id) }catch(e){} })();
+  $("#vidInfo").innerHTML = `<b>${esc(P.name)}</b> · ${P.width}×${P.height} · ${P.frames} frames @ ${(+P.fps).toFixed(1)} fps${P.is_gif?" · GIF (GIF + MP4 will be made)":""}`;
+  $("#scrub").max = P.frames-1; $("#pvScrub").max = P.frames-1;
+  $("#mode").value = P.cover.mode;
+  tracks = P.track.status==="done" ? await api(`/api/projects/${id}/tracks`) : null;
+  const k0 = P.cover.keyframes[0];
+  cur = k0 ? k0.frame : 0; $("#scrub").value = cur;
+  quad = k0 ? k0.quad.map(p=>[...p]) : defaultQuad();
+  $("#pvScrub").value = Math.floor(P.frames/2);
+  loadFrame(); renderKfs(); renderTrackState(); renderVendors(); fillStyle(); renderLinks(); setLocked(); refreshPreview();
+  if(P.track.status==="running") pollTrack();
+  if(Object.values(P.renders).some(r=>["queued","rendering"].includes(r.status))) pollRenders();
+}
+
+// ---------- upload video ----------
+const vd = $("#videoDrop");
+vd.onclick = () => $("#videoFile").click();
+["dragover","dragenter"].forEach(e=>vd.addEventListener(e, ev=>{ev.preventDefault(); vd.classList.add("over")}));
+["dragleave","drop"].forEach(e=>vd.addEventListener(e, ev=>{ev.preventDefault(); vd.classList.remove("over")}));
+vd.addEventListener("drop", ev => ev.dataTransfer.files[0] && uploadVideo(ev.dataTransfer.files[0]));
+$("#videoFile").onchange = e => e.target.files[0] && uploadVideo(e.target.files[0]);
+async function uploadVideo(f){
+  const fd = new FormData(); fd.append("file", f); fd.append("name", f.name.replace(/\.[^.]+$/,""));
+  $("#vidInfo").textContent = "Uploading and preparing video…";
+  try{ const p = await api("/api/projects", {method:"POST", body:fd}); await loadProjects(p.id); await openProject(p.id); toast("Video ready — now mark the cover"); $("#s2").scrollIntoView({behavior:"smooth"}); }
+  catch(e){ $("#vidInfo").textContent = "Error: "+e.message; }
+}
+
+// ---------- cover canvas ----------
+const cv = $("#cv"), ctx = cv.getContext("2d");
+function defaultQuad(){ const w=P.width,h=P.height; return [[w*.3,h*.35],[w*.7,h*.35],[w*.7,h*.6],[w*.3,h*.6]]; }
+function loadFrame(){
+  $("#fLabel").textContent = `frame ${cur} / ${P.frames-1}`;
+  img = new Image(); img.onload = draw; img.src = `/api/projects/${P.id}/frame/${cur}.jpg`;
+}
+function draw(){
+  if(!P) return;
+  cv.width = P.width; cv.height = P.height;
+  if(img.complete) ctx.drawImage(img,0,0,P.width,P.height);
+  const lw = Math.max(2, P.width/400), r = Math.max(7, P.width/110);
+  if(tracks && tracks.quads[cur]){
+    const low = (tracks.conf[cur]??1) < 0.15;
+    poly(tracks.quads[cur], low? "#ffd166":"#3ddc97", lw, [lw*4,lw*3]);
+  }
+  poly(quad, "#e4572e", lw);
+  ["TL","TR","BR","BL"].forEach((t,i)=>{ const [x,y]=quad[i];
+    ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fillStyle="#e4572e"; ctx.fill(); ctx.lineWidth=lw; ctx.strokeStyle="#fff"; ctx.stroke();
+    ctx.fillStyle="#fff"; ctx.font=`bold ${r*1.3}px system-ui`; ctx.fillText(t, x+r*1.3, y-r*1.1); });
+}
+function poly(q,col,lw,dash){ ctx.save(); ctx.setLineDash(dash||[]); ctx.beginPath(); q.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y)); ctx.closePath(); ctx.lineWidth=lw; ctx.strokeStyle=col; ctx.stroke(); ctx.restore(); }
+function toVid(ev){ const b=cv.getBoundingClientRect(); const t=ev.touches?ev.touches[0]:ev; return [(t.clientX-b.left)*P.width/b.width,(t.clientY-b.top)*P.height/b.height]; }
+let drag=-1, dragAll=null;
+function down(ev){ if(!P) return; const [x,y]=toVid(ev); const rr=Math.max(14,P.width/50);
+  drag = quad.findIndex(([qx,qy])=>Math.hypot(qx-x,qy-y)<rr);
+  if(drag<0 && ctx.isPointInPath(pathOf(quad),x,y)) dragAll=[x,y];
+  if(drag>=0||dragAll) ev.preventDefault(); }
+function pathOf(q){ const p=new Path2D(); q.forEach(([x,y],i)=>i?p.lineTo(x,y):p.moveTo(x,y)); p.closePath(); return p; }
+function move(ev){ if(drag<0 && !dragAll) return; ev.preventDefault(); const [x,y]=toVid(ev);
+  if(drag>=0) quad[drag]=[Math.max(0,Math.min(P.width,x)),Math.max(0,Math.min(P.height,y))];
+  else { const dx=x-dragAll[0], dy=y-dragAll[1]; quad=quad.map(([a,b])=>[a+dx,b+dy]); dragAll=[x,y]; }
+  draw(); }
+function up(){ drag=-1; dragAll=null; }
+cv.addEventListener("mousedown",down); window.addEventListener("mousemove",move); window.addEventListener("mouseup",up);
+cv.addEventListener("touchstart",down,{passive:false}); cv.addEventListener("touchmove",move,{passive:false}); cv.addEventListener("touchend",up);
+
+function goFrame(f){ cur=Math.max(0,Math.min(P.frames-1,f)); $("#scrub").value=cur;
+  const kf=P.cover.keyframes.find(k=>k.frame===cur);
+  if(kf) quad=kf.quad.map(p=>[...p]); else if(tracks && tracks.quads[cur]) quad=tracks.quads[cur].map(p=>[...p]);
+  loadFrame(); renderKfs(); }
+$("#scrub").oninput = e => goFrame(+e.target.value);
+$("#prevF").onclick = () => goFrame(cur-1);
+$("#nextF").onclick = () => goFrame(cur+1);
+$("#resetQuad").onclick = () => { quad=defaultQuad(); draw(); };
+
+async function saveCover(){
+  P = await api(`/api/projects/${P.id}/cover`, J("PUT", {mode:$("#mode").value, keyframes:P.cover.keyframes}));
+  tracks=null; renderKfs(); renderTrackState(); setLocked(); draw();
+}
+$("#setKf").onclick = async () => {
+  if($("#mode").value==="static") P.cover.keyframes = [];
+  P.cover.keyframes = P.cover.keyframes.filter(k=>k.frame!==cur).concat([{frame:cur, quad:quad.map(p=>p.map(v=>Math.round(v*10)/10))}]).sort((a,b)=>a.frame-b.frame);
+  await saveCover(); toast(`Corners saved at frame ${cur}`);
+};
+$("#mode").onchange = saveCover;
+function renderKfs(){
+  const el=$("#kfList"); if(!P.cover.keyframes.length){ el.innerHTML='<span class="muted">None yet</span>'; return; }
+  el.innerHTML = P.cover.keyframes.map(k=>`<span class="chip ${k.frame===cur?"cur":""}" data-f="${k.frame}">frame ${k.frame}<i data-del="${k.frame}">✕</i></span>`).join("");
+  el.querySelectorAll(".chip").forEach(c=>c.onclick=async ev=>{
+    const d=ev.target.dataset.del; if(d!==undefined){ P.cover.keyframes=P.cover.keyframes.filter(k=>k.frame!=d); await saveCover(); return; }
+    goFrame(+c.dataset.f); });
+}
+$("#trackBtn").onclick = async () => {
+  if(!P.cover.keyframes.length){ toast("First drag the corners onto the cover and click “Save corners at this frame”"); return; }
+  try{ await api(`/api/projects/${P.id}/track`, {method:"POST"}); P.track.status="running"; renderTrackState(); pollTrack(); }catch(e){ toast(e.message) }
+};
+function renderTrackState(){
+  const t=P.track; $("#trackBar").style.width = (t.status==="done"?100:(t.progress||0)*100)+"%";
+  $("#trackStatus").textContent = {none:"Not tracked", stale:"Corners changed — track again", running:"Tracking…", error:"Error: "+t.error,
+    done: t.low_confidence_frames ? `Done · ${t.low_confidence_frames} shaky frames (yellow)` : "Done ✓"}[t.status]||"";
+}
+async function pollTrack(){
+  const p = await api(`/api/projects/${P.id}`); P.track=p.track; renderTrackState();
+  if(p.track.status==="running") return setTimeout(pollTrack, 900);
+  if(p.track.status==="done"){ tracks = await api(`/api/projects/${P.id}/tracks`); P=p; draw(); setLocked(); refreshPreview(); toast("Cover tracked — scrub the slider to check the green box follows the cover"); }
+}
+
+// ---------- vendors ----------
+const vdz=$("#vendDrop");
+vdz.onclick=()=>$("#vendFile").click();
+["dragover","dragenter"].forEach(e=>vdz.addEventListener(e,ev=>{ev.preventDefault();vdz.classList.add("over")}));
+["dragleave","drop"].forEach(e=>vdz.addEventListener(e,ev=>{ev.preventDefault();vdz.classList.remove("over")}));
+vdz.addEventListener("drop",ev=>importVendors(ev.dataTransfer.files,""));
+$("#vendFile").onchange=e=>{ importVendors(e.target.files,""); e.target.value=""; };
+$("#pasteBtn").onclick=()=>{ if($("#paste").value.trim()) importVendors([], $("#paste").value).then(()=>$("#paste").value=""); };
+async function importVendors(files, text){
+  const fd=new FormData(); [...files].forEach(f=>fd.append("files",f)); fd.append("text",text);
+  $("#importMsg").textContent="Reading…";
+  try{ const r=await api(`/api/projects/${P.id}/vendors/import`,{method:"POST",body:fd});
+    P.vendors=r.vendors; renderVendors(); setLocked(); renderLinks(); fillPvVendors();
+    $("#importMsg").innerHTML = `Added <b>${r.added}</b> vendor(s)${r.logos_matched?`, matched <b>${r.logos_matched}</b> logo(s)`:""}. Check the names below — click any cell to edit.` + (r.errors.length?`<br><span style="color:var(--err)">${r.errors.map(esc).join("<br>")}</span>`:"");
+  }catch(e){ $("#importMsg").textContent="Error: "+e.message; }
+}
+const COLS=["name","contact","email","phone","website"];
+function renderVendors(){
+  const tb=$("#vTable tbody");
+  if(!P.vendors.length){ tb.innerHTML=`<tr><td colspan="8" class="muted" style="padding:16px">No vendors yet.</td></tr>`; fillPvVendors(); return; }
+  tb.innerHTML = P.vendors.map(v=>`<tr data-id="${v.id}">
+    <td><input type="checkbox" class="pick" ${v._skip?"":"checked"}></td>
+    <td class="logo-cell"><div class="logo-box" data-logo="${v.id}" style="${v.logo?`background-image:url(/api/projects/${P.id}/logo/${v.id}?t=${Date.now()})`:""}">${v.logo?"":"+ logo"}</div></td>
+    ${COLS.map(c=>`<td><input type="text" data-c="${c}" value="${esc(v[c])}"></td>`).join("")}
+    <td><button class="small" data-del="${v.id}" title="Remove">✕</button></td></tr>`).join("");
+  tb.querySelectorAll("input[type=text]").forEach(i=>i.onchange=saveVendors);
+  tb.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{ P.vendors=P.vendors.filter(v=>v.id!==b.dataset.del); saveVendors(); });
+  tb.querySelectorAll("[data-logo]").forEach(b=>b.onclick=()=>{ logoTarget=b.dataset.logo; $("#logoFile").click(); });
+  fillPvVendors();
+}
+$("#logoFile").onchange=async e=>{ const f=e.target.files[0]; if(!f||!logoTarget) return; const fd=new FormData(); fd.append("file",f);
+  const r=await api(`/api/projects/${P.id}/vendors/${logoTarget}/logo`,{method:"POST",body:fd});
+  P.vendors.find(v=>v.id===logoTarget).logo=r.logo; e.target.value=""; renderVendors(); refreshPreview(); };
+$("#addRow").onclick=()=>{ P.vendors.push({id:"", name:"New vendor", contact:"", email:"", phone:"", website:""}); saveVendors(); };
+$("#selAll").onchange=e=>document.querySelectorAll(".pick").forEach(c=>c.checked=e.target.checked);
+async function saveVendors(){
+  document.querySelectorAll("#vTable tbody tr[data-id]").forEach(tr=>{ const v=P.vendors.find(x=>x.id===tr.dataset.id); if(!v) return;
+    tr.querySelectorAll("input[data-c]").forEach(i=>v[i.dataset.c]=i.value); });
+  P.vendors = await api(`/api/projects/${P.id}/vendors`, J("PUT", P.vendors));
+  renderVendors(); renderLinks(); setLocked(); refreshPreview();
+}
+function picked(){ return [...document.querySelectorAll("#vTable tbody tr[data-id]")].filter(tr=>tr.querySelector(".pick").checked).map(tr=>tr.dataset.id); }
+
+// ---------- style + preview ----------
+function fillPvVendors(){ const s=$("#pvVendor"), keep=s.value; s.innerHTML=P.vendors.map(v=>`<option value="${v.id}">${esc(v.name)}</option>`).join(""); if(P.vendors.some(v=>v.id===keep)) s.value=keep; }
+function fillStyle(){
+  document.querySelectorAll("#styleForm [data-k]").forEach(el=>{ const v=P.style[el.dataset.k];
+    if(el.type==="checkbox") el.checked=!!v; else el.value=v; showVal(el); });
+}
+function showVal(el){ const o=$("#v_"+el.dataset.k); if(o) o.textContent = Math.round(el.value*100)+"%"; }
+let styleT=null;
+document.querySelectorAll("#styleForm [data-k]").forEach(el=>{
+  el.addEventListener("input",()=>{ showVal(el); clearTimeout(styleT); styleT=setTimeout(saveStyle, 450); });
+});
+async function saveStyle(){
+  const body={}; document.querySelectorAll("#styleForm [data-k]").forEach(el=>{ body[el.dataset.k] = el.type==="checkbox"? el.checked : (el.type==="range"? +el.value : el.value); });
+  P.style = await api(`/api/projects/${P.id}/style`, J("PUT", body)); refreshPreview();
+}
+$("#pvVendor").onchange=refreshPreview; $("#pvRefresh").onclick=refreshPreview;
+let pvT=null; $("#pvScrub").oninput=()=>{ clearTimeout(pvT); pvT=setTimeout(refreshPreview,250); };
+function refreshPreview(){
+  if(!P || !P.vendors.length || P.track.status!=="done") return;
+  const vid=$("#pvVendor").value || P.vendors[0].id, t=Date.now();
+  $("#pvImg").src=`/api/projects/${P.id}/preview/${vid}/${$("#pvScrub").value}.jpg?t=${t}`;
+  $("#decalImg").src=`/api/projects/${P.id}/decal/${vid}.png?t=${t}`;
+}
+
+// ---------- render + links ----------
+$("#renderSel").onclick=async()=>{ const ids=picked(); if(!ids.length){ toast("Tick at least one vendor in step 3"); return; }
+  try{ const r=await api(`/api/projects/${P.id}/render`, J("POST",{vendor_ids:ids})); toast(`Rendering ${r.queued} video(s)…`); pollRenders(); }catch(e){ toast(e.message); } };
+$("#zipBtn").onclick=e=>{ e.preventDefault(); if(P) location.href=`/api/projects/${P.id}/zip`; };
+$("#copyAll").onclick=async()=>{ const l=await api(`/api/projects/${P.id}/links`); const txt=l.filter(x=>x.share_url&&x.status==="done").map(x=>`${x.name}: ${x.share_url}`).join("\n");
+  if(!txt){ toast("No finished videos yet"); return; } await navigator.clipboard.writeText(txt); toast("Links copied"); };
+async function renderLinks(){
+  if(!P) return; const l=await api(`/api/projects/${P.id}/links`);
+  $("#rTable tbody").innerHTML = l.map(x=>`<tr>
+    <td>${x.status==="done"?`<img class="thumb" src="/api/projects/${P.id}/out/${x.vendor_id}.jpg?t=${Date.now()}">`:""}</td>
+    <td><b>${esc(x.name)}</b><br><span class="muted">${esc(x.email)}</span></td>
+    <td><span class="tag ${x.status}">${x.status}${x.status==="rendering"?" "+Math.round(x.progress*100)+"%":""}</span>${x.error?`<div style="color:var(--err);font-size:12px">${esc(x.error)}</div>`:""}</td>
+    <td>${x.share_url?`<a href="${x.share_url}" target="_blank">${esc(x.share_url)}</a>`:'<span class="muted">—</span>'}</td>
+    <td><div class="row">${x.share_url?`<button class="small" data-copy="${esc(x.share_url)}">Copy</button>`:""}${x.video_url?`<a class="btn small" style="padding:4px 9px;font-size:12px" href="${x.video_url}" download>MP4</a>`:""}${x.gif_url?`<a class="btn small" style="padding:4px 9px;font-size:12px" href="${x.gif_url}" download>GIF</a>`:""}${x.status!=="not rendered"?`<button class="small" data-rer="${x.vendor_id}">Re-render</button>`:""}</div></td></tr>`).join("");
+  document.querySelectorAll("[data-copy]").forEach(b=>b.onclick=async()=>{ await navigator.clipboard.writeText(b.dataset.copy); toast("Link copied"); });
+  document.querySelectorAll("[data-rer]").forEach(b=>b.onclick=async()=>{ await api(`/api/projects/${P.id}/render`, J("POST",{vendor_ids:[b.dataset.rer]})); pollRenders(); });
+  return l;
+}
+async function pollRenders(){ clearTimeout(pollT); const l=await renderLinks(); if(l && l.some(x=>["queued","rendering"].includes(x.status))) pollT=setTimeout(pollRenders,1500); }
+
+// ---------- boot ----------
+(async()=>{ await loadProjects(); let last=null; try{ last=localStorage.getItem("cb_last") }catch(e){}
+  if(last && [...$("#projSel").options].some(o=>o.value===last)){ $("#projSel").value=last; openProject(last); } })();
+</script>
+</body>
+</html>

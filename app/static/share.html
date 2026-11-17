@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<title>{{VENDOR}} · Container cover concept</title>
+<meta property="og:title" content="{{VENDOR}} · Container cover concept">
+<meta property="og:image" content="{{POSTER}}">
+<meta property="og:video" content="{{VIDEO}}">
+<style>
+  :root{--ink:#0d1b2a;--steel:#415a77;--paper:#f4f1ea;--accent:#e4572e}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--paper);color:var(--ink)}
+  header{padding:28px 20px 8px;max-width:960px;margin:auto}
+  .kicker{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--steel)}
+  h1{margin:6px 0 4px;font-size:clamp(24px,4vw,38px);line-height:1.1}
+  p{color:var(--steel);margin:0}
+  main{max-width:960px;margin:auto;padding:16px 20px 40px}
+  .frame{background:var(--ink);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(13,27,42,.25)}
+  video{display:block;width:100%;height:auto;background:#000}
+  .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+  a.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px}
+  .primary{background:var(--accent);color:#fff}
+  .ghost{border:1.5px solid var(--ink);color:var(--ink)}
+  .wait{padding:60px 20px;text-align:center;color:#fff}
+  footer{max-width:960px;margin:auto;padding:0 20px 30px;font-size:12px;color:var(--steel)}
+</style>
+</head>
+<body>
+<header>
+  <div class="kicker">Concept preview · {{PROJECT}}</div>
+  <h1>Prepared for {{VENDOR}}</h1>
+  <p>Your branding shown on the container cover. Play the video below or download it.</p>
+</header>
+<main>
+  <div class="frame" id="frame">
+    <video id="v" controls playsinline loop autoplay muted poster="{{POSTER}}" src="{{VIDEO}}"></video>
+  </div>
+  <div class="actions" id="actions">
+    <a class="btn primary" href="{{VIDEO}}" download>Download MP4</a>
+    <a class="btn ghost" id="gif" href="{{GIF}}" download>Download GIF</a>
+  </div>
+</main>
+<footer>This is a concept visual for discussion only.</footer>
+<script>
+  if ("{{READY}}" !== "1") {
+    document.getElementById("frame").innerHTML = '<div class="wait">Your video is still being prepared. Please refresh in a minute.</div>';
+    document.getElementById("actions").style.display = "none";
+  }
+  if (!"{{GIF}}") document.getElementById("gif").remove();
+</script>
+</body>
+</html>
